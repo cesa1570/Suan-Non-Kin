@@ -293,13 +293,28 @@ export const generateStoryboards = async (topic: string, style: string, scenes: 
   });
 };
 
+// ในไฟล์ geminiService.ts
+
+// ในไฟล์ services/geminiService.ts
+
 export const generateSeoMetadata = async (topic: string, title: string, description: string): Promise<{ hashtags: string[], seoKeywords: string }> => {
   return withRetry(async () => {
-    const ai = getClient();
+    // อย่าลืมส่ง apiKey เข้ามาใน getClient() ถ้าคุณแก้ตามสเต็ปก่อนหน้า
+    const ai = getClient(); 
     const lang = detectLanguage(topic);
+    
+    // 🔥 แก้ Prompt ตรงนี้: สั่งขอ 40-50 Tags แบบเน้นๆ
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate viral hashtags and search keywords in ${lang} for: ${topic}\nTitle: ${title}`,
+      model: 'gemini-2.0-flash-exp', // หรือ gemini-3-flash-preview
+      contents: `You are a YouTube SEO Expert. 
+      Generate a MASSIVE list of viral metadata in ${lang} for: "${topic}"
+      Context Title: "${title}"
+      
+      REQUIREMENTS:
+      1. hashtags: Generate exactly 40-50 high-volume viral hashtags. Mix broad (e.g. #fyp) and specific niche tags.
+      2. seoKeywords: Generate 50 comma-separated semantic keywords for the video tags section.
+      
+      Output JSON only.`,
       config: { 
         responseMimeType: "application/json",
         responseSchema: {

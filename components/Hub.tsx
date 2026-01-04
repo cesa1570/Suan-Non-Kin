@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { 
   Zap, Compass, PenTool, Share2, Flame, Video, 
   Clapperboard, Mic, Share, Youtube, ChevronRight,
-  FileJson, Database, Download, Loader2
+  FileJson, Database, Download, Loader2, FileEdit // Imported FileEdit
 } from 'lucide-react';
 import { exportAllData } from '../services/projectService';
 
@@ -56,7 +55,7 @@ const Hub: React.FC<HubProps> = ({ onNavigate }) => {
             <Icon size={28} className="text-white" fill="currentColor" />
           </div>
           {badge && (
-            <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 border ${badge === 'Hot' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+            <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5 border ${badge === 'Hot' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : badge === 'New' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
               <Flame size={10} fill="currentColor" /> {badge}
             </div>
           )}
@@ -137,6 +136,17 @@ const Hub: React.FC<HubProps> = ({ onNavigate }) => {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* ----- Manual Story Mode Added Here ----- */}
+          <ToolCard 
+            id="manual" 
+            title="Manual Story" 
+            desc="เขียนบท วางโครงเรื่อง และสร้างสตอรี่บอร์ดด้วยตัวเองแบบ Manual" 
+            icon={FileEdit} 
+            color="bg-indigo-500" 
+            badge="New" 
+          />
+          {/* -------------------------------------- */}
+
           <ToolCard 
             id="create" 
             title="Shorts Creator" 
