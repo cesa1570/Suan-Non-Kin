@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ScriptData, GeneratorMode, NewsItem, SocialPostData, PolishStyle, Scene } from "../types";
 
@@ -120,7 +119,7 @@ export const generateShortsScript = async (
     const detectedLang = detectLanguage(topic);
     const targetLang = (detectedLang === 'English') ? 'English' : (languageOverride || 'Thai');
     
-    const systemInstruction = `You are a Professional Viral Content Creator.
+    const systemInstruction = `You are a Professional Viral Content Creator & SEO Expert.
     STRICT LANGUAGE POLICY:
     - YOU MUST MIRROR THE LANGUAGE OF THE TOPIC.
     - TOPIC: "${topic}"
@@ -135,11 +134,19 @@ export const generateShortsScript = async (
     PRODUCTION RULES:
     1. Hook the audience in the first 3 seconds.
     2. EXACTLY 5 SCENES.
-    3. MAX 15 words per scene voiceover for fast-paced viral retention.`;
+    3. MAX 15 words per scene voiceover for fast-paced viral retention.
+    
+    SEO RULES (CRITICAL):
+    - GENERATE A MASSIVE TAG CLOUD.
+    - Title must be CLICKBAIT but relevant.
+    - Long Description must include keywords naturally.`;
 
     const response = await ai.models.generateContent({
       model: textModel as any,
-      contents: `Generate a script in ${targetLang} about: "${topic}". Remember, if the topic is English, keep the script English.`,
+      contents: `Generate a script in ${targetLang} about: "${topic}".
+      IMPORTANT:
+      - Hashtags: Generate 50-100 viral hashtags.
+      - Keywords: Generate a massive list of 100+ comma-separated SEO keywords.`,
       config: { 
         systemInstruction, 
         responseMimeType: "application/json",
@@ -149,7 +156,9 @@ export const generateShortsScript = async (
             title: { type: Type.STRING },
             seoTitle: { type: Type.STRING },
             description: { type: Type.STRING },
-            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
+            longDescription: { type: Type.STRING, description: "A detailed, SEO-optimized description (3 paragraphs) packed with keywords." },
+            seoKeywords: { type: Type.STRING, description: "A massive list of 100-200 comma-separated high-traffic keywords for metadata." },
+            hashtags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Array of 60-100 viral hashtags." },
             scenes: {
               type: Type.ARRAY,
               minItems: 5, maxItems: 5,
@@ -165,12 +174,15 @@ export const generateShortsScript = async (
               }
             }
           },
-          required: ["title", "seoTitle", "scenes"]
+          required: ["title", "seoTitle", "scenes", "longDescription", "seoKeywords", "hashtags"]
         }
       }
     });
 
     const data = safeParseJson(response.text || '{}');
+    
+    if (!data.longDescription) data.longDescription = data.description;
+    
     return { ...data, scenes: (data.scenes || []).map((s: any) => ({ ...s, status: 'pending' })) };
   });
 };
@@ -184,53 +196,29 @@ export const generateLongVideoScript = async (
   languageOverride?: 'Thai' | 'English',
   durationMinutes: number = 10,
   style: string = 'Cinematic',
-  textModel: string = 'gemini-3-pro-preview' // แนะนำรุ่น Pro เพื่อความฉลาด
+  textModel: string = 'gemini-3-pro-preview'
 ): Promise<ScriptData> => {
   return withRetry(async () => {
     const ai = getClient();
     const styleDirectives = STYLE_DIRECTIVES[style] || STYLE_DIRECTIVES['Cinematic'];
     
-    // คำนวณเป้าหมายจำนวนคำ (พูดปกติ ~140 คำ/นาที)
     const targetWordCount = durationMinutes * 140; 
     
     const detectedLang = detectLanguage(topic);
     const targetLang = (detectedLang === 'English') ? 'English' : (languageOverride || 'Thai');
     
-    // 🔥 PROMPT ที่อัปเกรดแล้วสำหรับสาย DEEP DIVE
-    const systemInstruction = `You are a World-Class Documentary Filmmaker and Subject Matter Expert (History/Science/Tech).
+    const systemInstruction = `You are a World-Class Documentary Filmmaker and Subject Matter Expert.
+    STRICT LANGUAGE POLICY: Target Language: ${targetLang}.
     
-    YOUR GOAL: Create a "Deep Dive" video script (Video Essay style).
-    
-    STRICT LANGUAGE POLICY:
-    - TOPIC: "${topic}"
-    - TARGET LANGUAGE: ${targetLang} (Must output in this language only).
-    - 'visual_prompt' MUST remain in English (Technical description).
-
-    CONTENT DEPTH GUIDELINES (CRITICAL):
-    1. NO FLUFF: Avoid generic phrases like "In today's video..." or "Let's dive in." Start with a hook.
-    2. FACT-DENSE: Every paragraph must contain specific dates, names, statistics, or scientific principles.
-    3. NUANCE: Do not just state facts; explain the *implications*, *causes*, and *effects*.
-    4. UNKNOWN DETAILS: Include trivia or insights that the average person doesn't know.
-    5. STRUCTURE: 
-       - Hook (Mystery/Paradox)
-       - Historical/Contextual Background
-       - The Core Analysis (The "Meat" of the video)
-       - Addressing Misconceptions
-       - Profound Conclusion
-    
-    ARTISTIC DIRECTION: ${style}.
-    TECHNICAL SPECS: ${styleDirectives}.`;
+    SEO INSTRUCTIONS:
+    - Generate VERY LONG, detailed descriptions.
+    - Include a massive list of keywords.`;
 
     const response = await ai.models.generateContent({
       model: textModel as any,
       contents: `Generate a highly detailed, educational documentary script about: "${topic}".
-      
-      PARAMETERS:
-      - Duration: ${durationMinutes} Minutes.
-      - Target Word Count: Approximately ${targetWordCount} words (Make the script long and detailed to fit the time).
-      - Tone: Intellectual, Authoritative, yet Engaging (Like 'Lemmino' or 'Veritasium').
-      
-      Provide 10 to 30 sequential scenes covering the topic in extreme depth.`,
+      Duration: ${durationMinutes} Minutes.
+      Target Word Count: ${targetWordCount} words.`,
       config: { 
         systemInstruction, 
         responseMimeType: "application/json",
@@ -240,17 +228,18 @@ export const generateLongVideoScript = async (
             title: { type: Type.STRING },
             seoTitle: { type: Type.STRING },
             longDescription: { type: Type.STRING },
+            seoKeywords: { type: Type.STRING, description: "Massive list of 200+ keywords." },
             hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
             scenes: {
               type: Type.ARRAY,
               minItems: 10, 
-              maxItems: 40, // เพิ่ม Max items เพราะบทยาวขึ้น
+              maxItems: 40,
               items: {
                 type: Type.OBJECT,
                 properties: {
                   id: { type: Type.INTEGER },
                   visual_prompt: { type: Type.STRING },
-                  voiceover: { type: Type.STRING }, // AI จะพยายามเขียนให้ยาวขึ้นตรงนี้
+                  voiceover: { type: Type.STRING },
                   duration_est: { type: Type.NUMBER }
                 },
                 required: ["id", "visual_prompt", "voiceover", "duration_est"]
@@ -274,35 +263,26 @@ export const refineVisualPrompt = async (topic: string, style: string, voiceover
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `You are a Director of Photography. Enhance this scene concept into a professional 8K cinematic visual prompt in English.
-      
       Scene Context: ${voiceover}
       Base Topic: ${topic}
       Technical Directives: ${styleDirectives}
-      
-      OUTPUT: One dense English paragraph describing lighting physics, camera lens (e.g. 35mm), specific angles, and atmospheric elements (haze, dust motes). Do not include conversational filler.`,
+      OUTPUT: One dense English paragraph describing lighting physics, camera lens (e.g. 35mm), specific angles, and atmospheric elements.`,
     });
     return response.text || "";
   });
 };
 
-/**
- * Bulk generate narratively consistent storyboards for multiple scenes.
- */
 export const generateStoryboards = async (topic: string, style: string, scenes: {id: number, voiceover: string}[]): Promise<Record<number, string>> => {
   return withRetry(async () => {
     const ai = getClient();
     const styleDirectives = STYLE_DIRECTIVES[style] || STYLE_DIRECTIVES['Cinematic'];
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are the Lead Concept Artist. Generate visually consistent English storyboard prompts for this narrative sequence.
-      
+      contents: `Generate visually consistent English storyboard prompts for this narrative sequence.
       Topic: ${topic}
       Visual DNA: ${styleDirectives}
-      
       Timeline:
       ${scenes.map(s => `ID ${s.id}: ${s.voiceover}`).join('\n')}
-      
-      TASK: Produce a hyper-descriptive cinematic prompt for each ID. Ensure visual continuity in lighting and environment.
       Return ONLY valid JSON: {"storyboards": [{"id": number, "prompt": string}]}`,
       config: { responseMimeType: "application/json" }
     });
@@ -315,24 +295,27 @@ export const generateStoryboards = async (topic: string, style: string, scenes: 
   });
 };
 
-// ในไฟล์ geminiService.ts
-
+// 🔥 [จุดสำคัญ] ฟังก์ชันสร้าง SEO Metadata แบบจัดเต็ม 500+ Keywords
 export const generateSeoMetadata = async (topic: string, title: string, description: string): Promise<{ hashtags: string[], seoKeywords: string }> => {
   return withRetry(async () => {
-    // อย่าลืมส่ง apiKey เข้ามาใน getClient() ถ้าคุณแก้ตามสเต็ปก่อนหน้า
     const ai = getClient(); 
     const lang = detectLanguage(topic);
     
-    // 🔥 แก้ Prompt ตรงนี้: สั่งขอ 40-50 Tags แบบเน้นๆ
+    // Fix: Using gemini-3-pro-preview for complex text generation tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', // หรือ gemini-3-flash-preview
-      contents: `You are a YouTube SEO Expert. 
-      Generate a MASSIVE list of viral metadata in ${lang} for: "${topic}"
+      model: 'gemini-3-pro-preview', 
+      contents: `You are a YouTube SEO God. 
+      Generate a MASSIVE, EXTREME list of metadata in ${lang} for: "${topic}"
       Context Title: "${title}"
       
       REQUIREMENTS:
-      1. hashtags: Generate exactly 40-50 high-volume viral hashtags. Mix broad (e.g. #fyp) and specific niche tags.
-      2. seoKeywords: Generate 50 comma-separated semantic keywords for the video tags section.
+      1. hashtags: Generate exactly 100 high-volume viral hashtags. Mix broad (e.g. #fyp) and specific niche tags.
+      2. seoKeywords: Generate 500+ (FIVE HUNDRED PLUS) comma-separated semantic keywords for the video tags section.
+         - Include long-tail keywords.
+         - Include misspellings.
+         - Include related questions.
+         - Include competitor tags.
+         - MAKE IT MASSIVE.
       
       Output JSON only.`,
       config: { 

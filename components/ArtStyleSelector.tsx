@@ -1,5 +1,5 @@
 import React from 'react';
-import { Palette, Sparkles, X, Check, Eye, Zap, Layers, Wand2, Info, Camera, Monitor, Film } from 'lucide-react';
+import { Palette, X, Check, Zap, Layers, Info, Camera, Monitor, Film } from 'lucide-react';
 
 export interface StyleOption {
   id: string;
@@ -10,7 +10,8 @@ export interface StyleOption {
   technicalHint: string;
 }
 
-const STYLES: StyleOption[] = [
+// ✅ ข้อมูลชุดใหม่ (รวม Junji Ito + Unreal)
+export const STYLES: StyleOption[] = [
   {
     id: 'Cinematic',
     name: 'Cinematic Master',
@@ -24,7 +25,7 @@ const STYLES: StyleOption[] = [
     name: 'Neo Anime',
     description: 'Vibrant cel-shaded visuals inspired by modern Makoto Shinkai animation.',
     dna: ['Saturated Colors', 'Expressive Lines', 'Stylized Sky', 'Hand-drawn feel'],
-    image: 'https://images.unsplash.com/photo-1578632738908-45244a17fe1b?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1542931287-023b922fa89b?auto=format&fit=crop&q=80&w=800',
     technicalHint: 'Adds: cel shaded, vibrant lines, anime aesthetic, stylized textures'
   },
   {
@@ -48,18 +49,25 @@ const STYLES: StyleOption[] = [
     name: 'NatGeo Reality',
     description: 'Realistic, high-fidelity textures with neutral, natural lighting.',
     dna: ['Natural Light', 'Macro Detail', 'True Color', 'Clean Frame'],
-    image: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&q=80&w=800',
     technicalHint: 'Adds: neutral lighting, documentary style, macro lens, realistic textures'
   },
-  // --- New Style Added Here ---
   {
-   id: 'Unreal',
-   name: 'Unreal Engine 5',
-   description: 'Hyper-realistic 3D rendering with advanced global illumination and ray tracing.',
-   dna: ['Lumen', 'Nanite', 'Ray Tracing', '8K Render'],
-   image: 'https://images.unsplash.com/photo-1614726365723-49cfae9680a6?auto=format&fit=crop&q=80&w=800', 
-   technicalHint: 'Adds: Unreal Engine 5 render, 8k resolution, lumen global illumination'
-  }
+    id: 'Unreal',
+    name: 'Unreal Engine 5',
+    description: 'Hyper-realistic 3D rendering with advanced global illumination and ray tracing.',
+    dna: ['Lumen', 'Nanite', 'Ray Tracing', '8K Render'],
+    image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&q=80&w=800',
+    technicalHint: 'Adds: Unreal Engine 5 render, 8k resolution, lumen global illumination'
+  },
+  {
+    id: 'JunjiIto',
+    name: 'Horror Manga',
+    description: 'Spirals, body horror, and psychological terror in the style of Junji Ito.',
+    dna: ['Junji Ito', 'Manga Horror', 'Gore', 'Spiral'],
+    image: 'https://images.unsplash.com/photo-1513569771920-c9e1d31714b0?auto=format&fit=crop&q=80&w=800',
+    technicalHint: 'junji ito style, manga horror, black and white, grotesque, psychological horror, detailed line work, cross-hatching, spiral patterns, unsettling, body horror, dark fantasy anime'
+  },
 ];
 
 interface ArtStyleSelectorProps {
@@ -72,13 +80,17 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/98 backdrop-blur-2xl p-6 animate-in fade-in duration-300">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-7xl rounded-[4rem] p-12 relative shadow-3xl overflow-hidden ring-1 ring-slate-700">
+        
+        {/* Background Blobs */}
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
         
+        {/* Close Button */}
         <button onClick={onClose} className="absolute top-10 right-10 text-slate-500 hover:text-white transition p-2 active:scale-90 z-20">
           <X size={32} />
         </button>
 
+        {/* Header */}
         <div className="mb-12 relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <div className="flex items-center gap-4 mb-2">
@@ -91,13 +103,12 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
           </div>
           <div className="px-6 py-2 bg-slate-800 rounded-full flex items-center gap-3 border border-slate-700">
              <Layers size={14} className="text-purple-400" />
-             {/* Updated text to reflect new count */}
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">6 Multi-Spectral Style Kernels</span>
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{STYLES.length} Multi-Spectral Style Kernels</span>
           </div>
         </div>
 
-        {/* Updated grid to grid-cols-3 for better layout with 6 items, or use grid-cols-6 if screen permits */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 max-h-[60vh] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-800">
+        {/* Grid Container (UI แบบเดิมที่เป็นการ์ดใบใหญ่ มีรายละเอียดครบ) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-h-[60vh] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-800">
           {STYLES.map((style) => (
             <button
               key={style.id}
@@ -133,6 +144,7 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
                  )}
               </div>
 
+              {/* Text Content (รายละเอียดครบแบบเดิม) */}
               <div className="p-6 flex-1 flex flex-col">
                 <div className="mb-4">
                   <h4 className={`text-lg font-black uppercase tracking-tight transition-colors mb-1 ${selectedId === style.id ? 'text-purple-400' : 'text-white group-hover:text-purple-300'}`}>
@@ -169,6 +181,7 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
           ))}
         </div>
 
+        {/* Footer */}
         <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-6">
              <div className="flex items-center gap-3">

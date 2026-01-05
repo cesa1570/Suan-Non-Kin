@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Youtube, X, Send, Loader2, CheckCircle2, AlertCircle, Globe, Lock, EyeOff, Hash, AlertTriangle, Clock } from 'lucide-react';
 import { uploadVideoToYouTube } from '../services/youtubeService';
@@ -17,7 +16,7 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
   const [title, setTitle] = useState(initialTitle.substring(0, 100));
   const [description, setDescription] = useState(initialDescription);
   const [tags, setTags] = useState(initialTags.join(', '));
-  const [scheduledTime, setScheduledTime] = useState<string>('');
+  const [scheduledTime, setScheduledTime] = useState<string>(''); // [เพิ่ม] State เก็บเวลา
   const [privacy, setPrivacy] = useState<'public' | 'private' | 'unlisted'>('private');
 
   const [isUploading, setIsUploading] = useState(false);
@@ -64,13 +63,14 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
     try {
       const tagArray = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
-      // Convert local time to ISO string (UTC) for YouTube
+      // [เพิ่ม] เตรียมค่า publishAt เป็น ISO string (UTC)
       let publishAtISO = undefined;
       if (scheduledTime) {
          const dateObj = new Date(scheduledTime);
          publishAtISO = dateObj.toISOString();
       }
 
+      // ส่ง publishAtISO ไปยังฟังก์ชัน upload
       const result = await uploadVideoToYouTube(
         videoBlob,
         title,
@@ -92,8 +92,10 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
           id: Date.now(),
           videoId: result.id,
           title: title,
-          status: privacy.charAt(0).toUpperCase() + privacy.slice(1),
-          date: new Date().toISOString()
+          // บันทึกสถานะให้ถูกต้อง (ถ้ามีเวลา = Scheduled)
+          status: scheduledTime ? 'Scheduled' : (privacy.charAt(0).toUpperCase() + privacy.slice(1)),
+          date: new Date().toISOString(),
+          publishAt: publishAtISO
         });
         localStorage.setItem('yt_upload_history', JSON.stringify(history.slice(0, 20)));
       } catch (e) {
@@ -108,7 +110,7 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
       
       if (err.message === "YOUTUBE_QUOTA_EXCEEDED") {
         setIsQuotaError(true);
-        errorMsg = "YouTube API Quota Exceeded. Daily limit reached. Each video upload requires ~1,600 units.";
+        errorMsg = "YouTube API Quota Exceeded. โควต้า Google Cloud รายวันของคุณเต็มแล้ว (10,000 units). หมายเหตุ: การอัปโหลดวิดีโอ 1 ครั้งใช้ 1,600 units.";
       } else if (errorMsg.includes("401") || errorMsg.includes("unauthorized")) {
         errorMsg = "Session expired. Please reconnect your YouTube account.";
       } else if (errorMsg.includes("403")) {
@@ -149,7 +151,11 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
             </div>
             <div className="text-center">
               <h3 className="text-2xl font-black text-white uppercase tracking-tight">Upload Successful!</h3>
-              <p className="text-slate-400 text-sm mt-2 max-w-md mx-auto font-kanit">Your video has been sent to YouTube Studio for processing. It will appear on your channel shortly.</p>
+              <p className="text-slate-400 text-sm mt-2 max-w-md mx-auto font-kanit">
+                {scheduledTime 
+                  ? `Your video has been scheduled. It will automatically go public on ${new Date(scheduledTime).toLocaleString()}.`
+                  : "Your video has been sent to YouTube Studio for processing. It will appear on your channel shortly."}
+              </p>
             </div>
             <div className="flex gap-4 justify-center">
               <a href={`https://youtu.be/${success.id}`} target="_blank" rel="noreferrer" className="px-10 py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-900/20 hover:bg-red-500 transition-all hover:scale-105 active:scale-95">View on YouTube</a>
@@ -198,22 +204,24 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
                     ].map(opt => (
                       <button
                         key={opt.id}
-                        onClick={() => setPrivacy(opt.id as any)}
-                        disabled={isUploading || scheduledTime !== ''}
+                        onClick={() => {
+                          setPrivacy(opt.id as any);
+                          // ถ้าเลือก Privacy อื่น ให้ล้างค่าเวลา (เพราะ Schedule ต้องคู่กับ Private)
+                          if (scheduledTime) setScheduledTime('');
+                        }}
+                        disabled={isUploading}
                         className={`py-4 rounded-2xl text-[10px] font-black uppercase flex flex-col items-center gap-2 border transition-all disabled:opacity-50 ${privacy === opt.id ? 'bg-red-600 border-red-500 text-white shadow-xl' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-300'}`}
                       >
                         {opt.icon} {opt.label}
                       </button>
                     ))}
                   </div>
-                  {scheduledTime && (
-                    <p className="text-[8px] text-blue-400 mt-2 font-bold uppercase tracking-tighter">* Scheduling requires Private status</p>
-                  )}
                 </div>
 
-                <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
-                    <Clock size={12} className="text-red-500" /> Schedule Publication (Optional)
+                {/* [เพิ่ม] ส่วนตั้งเวลาลงคลิป */}
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-colors">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                    <Clock size={12} className="text-blue-500" /> Schedule Publication (Optional)
                   </label>
                   <input
                     type="datetime-local"
@@ -224,10 +232,14 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
                       if (e.target.value) setPrivacy('private');
                     }}
                     disabled={isUploading}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm font-kanit outline-none focus:ring-2 focus:ring-red-600/30 transition-all disabled:opacity-50"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm font-kanit outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 appearance-none"
+                    style={{ colorScheme: 'dark' }}
                   />
                   {scheduledTime && (
-                    <p className="text-[9px] text-slate-500 mt-2 italic">YouTube will auto-publish at this time.</p>
+                    <div className="mt-3 flex items-start gap-2 text-[10px] text-blue-400/80 bg-blue-500/5 p-2 rounded-lg border border-blue-500/10">
+                       <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                       <p>Visibility will be locked to 'Private' until {new Date(scheduledTime).toLocaleString()}.</p>
+                    </div>
                   )}
                 </div>
 
@@ -280,10 +292,19 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
                 <button
                   onClick={handleUpload}
                   disabled={!title || isQuotaError}
-                  className={`w-full py-6 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group ${isQuotaError ? 'bg-slate-800 shadow-none' : 'bg-red-600 shadow-red-900/40 hover:bg-red-500'}`}
+                  className={`w-full py-6 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group ${isQuotaError ? 'bg-slate-800 shadow-none' : 'bg-red-600 shadow-red-900/40 hover:bg-red-50'}`}
                 >
-                  <Send size={24} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                  {isQuotaError ? 'Quota Exceeded' : scheduledTime ? 'Schedule Broadcast' : 'Launch Publication'}
+                  {scheduledTime ? (
+                     <>
+                        <Clock size={24} className="group-hover:-rotate-12 transition-transform" />
+                        {isQuotaError ? 'Quota Exceeded' : 'Schedule Publication'}
+                     </>
+                  ) : (
+                     <>
+                        <Send size={24} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                        {isQuotaError ? 'Quota Exceeded' : 'Launch Publication'}
+                     </>
+                  )}
                 </button>
               )}
             </div>

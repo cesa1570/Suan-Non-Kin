@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getQueue, YoutubeQueueItem, updateQueueItem } from '../services/projectService';
+import { getQueue, YoutubeQueueItem } from '../services/projectService';
 
 interface AutomationContextType {
   isPassiveMode: boolean;
@@ -13,11 +12,13 @@ interface AutomationContextType {
   setCurrentAction: (action: string) => void;
   isQuotaLimited: boolean;
   setQuotaLimited: (limited: boolean) => void;
+  apiKey: string;
 }
 
 const AutomationContext = createContext<AutomationContextType | undefined>(undefined);
 
-export const AutomationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// [แก้ไข 1] เพิ่ม apiKey ใน Props Type Definition
+export const AutomationProvider: React.FC<{ children: React.ReactNode; apiKey: string }> = ({ children, apiKey }) => {
   const [isPassiveMode, setIsPassiveMode] = useState(false);
   const [logs, setLogs] = useState<string[]>(["[System] Autonomous core initialized.", "[System] Awaiting instructions..."]);
   const [queue, setQueue] = useState<YoutubeQueueItem[]>([]);
@@ -63,9 +64,10 @@ export const AutomationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       currentAction,
       setCurrentAction,
       isQuotaLimited,
-      setQuotaLimited: setIsQuotaLimited
+      setQuotaLimited: setIsQuotaLimited,
+      apiKey // [แก้ไข 2] ส่ง apiKey เข้าไปใน Context Value
     }}>
-      {children}
+      {children} {/* [แก้ไข 3] ต้อง Render children (ตัวแอป) ไม่ใช่ Render apiKey */}
     </AutomationContext.Provider>
   );
 };

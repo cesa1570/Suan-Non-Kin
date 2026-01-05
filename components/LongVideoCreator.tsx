@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ProjectState, GeneratorMode, Scene, SubtitleStyle, ScriptData } from '../types';
 import { generateLongVideoScript, generateVideoForScene, generateImageForScene, generateVoiceover, ERR_INVALID_KEY, summarizeScript, refineVisualPrompt, generateStoryboards } from '../services/geminiService';
@@ -58,9 +57,15 @@ const formatDuration = (seconds: number) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const LongVideoCreator: React.FC<{ initialTopic?: string, initialLanguage?: string }> = ({ initialTopic, initialLanguage = 'Thai' }) => {
+// [แก้ไข] เพิ่ม apiKey ใน Interface และ Component Props
+interface LongVideoCreatorProps {
+  initialTopic?: string;
+  initialLanguage?: string;
+  apiKey: string;
+}
+
+const LongVideoCreator: React.FC<{ initialTopic?: string, initialLanguage?: string; apiKey: string }> = ({ initialTopic, initialLanguage = 'Thai', apiKey }) => {
   const { openKeySelection, resetKeyStatus } = useApp();
-  // Fixed: Destructured addLog from useAutomation hook
   const { addLog } = useAutomation();
   const [state, setState] = useState<ProjectState>({ status: 'idle', topic: initialTopic || '', script: null, currentStep: '' });
   const [language, setLanguage] = useState<'Thai' | 'English'>(initialLanguage as any);
@@ -537,31 +542,31 @@ const LongVideoCreator: React.FC<{ initialTopic?: string, initialLanguage?: stri
                   {activeTab === 'script' && (
                     <div className="space-y-8">
                       <div className="p-8 bg-slate-950 rounded-[2.5rem] border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 shadow-inner">
-                         <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-400 border border-purple-500/20"><Rocket size={28}/></div>
-                            <div>
-                              <h4 className="text-base font-black text-white uppercase tracking-tight">Production Orchestrator</h4>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase">{completedScenesCount} of {totalScenesCount} Scenes Ready</p>
-                            </div>
-                         </div>
-                         <div className="flex flex-wrap gap-4 justify-center md:justify-end">
-                            <button 
-                              onClick={handleAutoStoryboard} 
-                              disabled={isStoryboarding || isProcessingAll} 
-                              className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 active:scale-95 disabled:opacity-50 ${isStoryboarding ? 'bg-indigo-600 text-white animate-pulse' : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'}`}
-                            >
-                              {isStoryboarding ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} className="text-indigo-500" />}
-                              Magic Storyboard
-                            </button>
-                            <button 
-                              onClick={handleGenerateAll} 
-                              disabled={isProcessingAll || isRefiningAll || isStoryboarding || (completedScenesCount === totalScenesCount && totalScenesCount > 0)} 
-                              className={`px-12 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.1em] transition-all shadow-xl flex items-center gap-4 group active:scale-95 ${isProcessingAll ? 'bg-orange-600 text-white animate-pulse' : 'bg-purple-600 text-white hover:bg-purple-500 shadow-purple-900/40'}`}
-                            >
-                              {isProcessingAll ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                              {isProcessingAll ? 'Synthesizing All...' : 'Synthesize All Scenes'}
-                            </button>
-                         </div>
+                          <div className="flex items-center gap-5">
+                             <div className="w-14 h-14 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-400 border border-purple-500/20"><Rocket size={28}/></div>
+                             <div>
+                               <h4 className="text-base font-black text-white uppercase tracking-tight">Production Orchestrator</h4>
+                               <p className="text-[10px] text-slate-500 font-bold uppercase">{completedScenesCount} of {totalScenesCount} Scenes Ready</p>
+                             </div>
+                          </div>
+                          <div className="flex flex-wrap gap-4 justify-center md:justify-end">
+                             <button 
+                               onClick={handleAutoStoryboard} 
+                               disabled={isStoryboarding || isProcessingAll} 
+                               className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 active:scale-95 disabled:opacity-50 ${isStoryboarding ? 'bg-indigo-600 text-white animate-pulse' : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'}`}
+                             >
+                               {isStoryboarding ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} className="text-indigo-500" />}
+                               Magic Storyboard
+                             </button>
+                             <button 
+                               onClick={handleGenerateAll} 
+                               disabled={isProcessingAll || isRefiningAll || isStoryboarding || (completedScenesCount === totalScenesCount && totalScenesCount > 0)} 
+                               className={`px-12 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.1em] transition-all shadow-xl flex items-center gap-4 group active:scale-95 ${isProcessingAll ? 'bg-orange-600 text-white animate-pulse' : 'bg-purple-600 text-white hover:bg-purple-500 shadow-purple-900/40'}`}
+                             >
+                               {isProcessingAll ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
+                               {isProcessingAll ? 'Synthesizing All...' : 'Synthesize All Scenes'}
+                             </button>
+                          </div>
                       </div>
                       <SceneManager 
                         scenes={state.script.scenes || []} 
@@ -730,13 +735,13 @@ const LongVideoCreator: React.FC<{ initialTopic?: string, initialLanguage?: stri
                     <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl">
                       <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Frames Synthesized</span>
                       <span className="text-sm font-black text-white font-mono flex items-center justify-center gap-2">
-                         <Layers size={12} className="text-purple-400"/> {currentFrame} <span className="text-slate-600 text-[10px]">/ {totalFrames}</span>
+                          <Layers size={12} className="text-purple-400"/> {currentFrame} <span className="text-slate-600 text-[10px]">/ {totalFrames}</span>
                       </span>
                     </div>
                     <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-2xl">
                       <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Time Remaining</span>
                       <span className="text-sm font-black text-indigo-400 font-mono flex items-center justify-center gap-2">
-                         <Timer size={12}/> {formatDuration(etaSeconds)}
+                          <Timer size={12}/> {formatDuration(etaSeconds)}
                       </span>
                     </div>
                   </div>
@@ -776,7 +781,7 @@ const LongVideoCreator: React.FC<{ initialTopic?: string, initialLanguage?: stri
                       ))}
                     </div>
                     {exportResolution === '360p' && (
-                       <p className="text-[8px] text-orange-400 italic font-bold text-center uppercase tracking-widest animate-pulse">Turbo Mode: เร็วขึ้น 400% เหมาะสำหรับดราฟต์แรก</p>
+                        <p className="text-[8px] text-orange-400 italic font-bold text-center uppercase tracking-widest animate-pulse">Turbo Mode: เร็วขึ้น 400% เหมาะสำหรับดราฟต์แรก</p>
                     )}
                   </div>
 

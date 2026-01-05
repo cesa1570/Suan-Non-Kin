@@ -1,4 +1,5 @@
 
+
 export interface Scene {
   id: number;
   visual_prompt: string;
@@ -44,6 +45,15 @@ export interface ScriptData {
   thumbnailUrl?: string;
 }
 
+/**
+ * Interface for AI generated social media posts
+ */
+export interface SocialPostData {
+  caption: string;
+  hashtags: string[];
+  image_prompt: string;
+}
+
 export interface ProjectState {
   id?: string;
   status: 'idle' | 'generating_script' | 'generating_assets' | 'ready' | 'error';
@@ -62,11 +72,11 @@ export enum GeneratorMode {
   PHYSICS = 'Physics/Science',
   CRETACEOUS = 'Prehistoric/Dinosaurs',
   LONG_VIDEO = 'Cinematic Long Video',
-  PODCAST = 'AI Podcast/Dialogue',
   SPACE = 'Space/Astronomy',
   FINANCE = 'Wealth/Money',
   ASMR = 'ASMR/Chill Facts',
-  DOCUMENTARY = 'Documentary/Special'
+  DOCUMENTARY = 'Documentary/Special',
+  PODCAST = 'Podcast/Conversation'
 }
 
 export type PolishStyle = 'Viral' | 'Funny' | 'Simple' | 'Dramatic' | 'Professional' | 'Translate';
@@ -84,10 +94,4 @@ export interface NewsItem {
   source?: string;
   date?: string;
   url?: string;
-}
-
-export interface SocialPostData {
-  caption: string;
-  hashtags: string[];
-  image_prompt: string;
 }

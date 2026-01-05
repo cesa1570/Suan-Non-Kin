@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useAutomation } from '../contexts/AutomationContext';
 import { fetchTrendingNews, generateShortsScript, generateImageForScene, generateVoiceover, generateVideoForScene, generatePodcastAudio } from '../services/geminiService';
@@ -9,10 +8,15 @@ import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import { GeneratorMode } from '../types';
 
 // Configuration constants
-const TICK_RATE = 5000; // Check every 5 seconds
-const MIN_QUEUE_BUFFER = 2; // Auto-fetch if queue has fewer than this many items
+const TICK_RATE = 5000; 
+const MIN_QUEUE_BUFFER = 2; 
 
-const AutomationEngine: React.FC = () => {
+// [แก้ไข] เพิ่ม Interface รับ apiKey
+interface AutomationEngineProps {
+  apiKey: string;
+}
+
+const AutomationEngine: React.FC<AutomationEngineProps> = ({ apiKey }) => {
     const { isPassiveMode, queue, refreshQueue, addLog, setCurrentAction, isQuotaLimited, setQuotaLimited } = useAutomation();
     const [isProcessing, setIsProcessing] = useState(false);
 

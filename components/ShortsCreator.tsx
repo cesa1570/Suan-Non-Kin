@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ProjectState, GeneratorMode, Scene, SubtitleStyle, ScriptData } from '../types';
 import { generateShortsScript, generateImageForScene, generateVoiceover, generateVideoForScene, ERR_INVALID_KEY, refineVisualPrompt } from '../services/geminiService';
@@ -28,7 +27,15 @@ const SaveStatusIndicator = ({ status }: { status: 'draft' | 'saving' | 'saved' 
   }
 };
 
-const ShortsCreator: React.FC<{ initialTopic?: string, initialLanguage?: 'Thai' | 'English' }> = ({ initialTopic, initialLanguage = 'Thai' }) => {
+// [แก้ไข] เพิ่ม apiKey: string เข้าไปใน Interface ของ Props
+interface ShortsCreatorProps {
+  initialTopic?: string;
+  initialLanguage?: 'Thai' | 'English';
+  apiKey: string;
+}
+
+const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLanguage = 'Thai', apiKey }) => {
+  // ... (Code ภายในเหมือนเดิมทั้งหมด) ...
   const { openKeySelection, resetKeyStatus, hasSelectedKey } = useApp();
   const [state, setState] = useState<ProjectState>({ status: 'idle', topic: initialTopic || '', script: null, currentStep: '' });
   const [mode, setMode] = useState<GeneratorMode>(GeneratorMode.FACTS);
@@ -338,7 +345,15 @@ const ShortsCreator: React.FC<{ initialTopic?: string, initialLanguage?: 'Thai' 
           </div>
         )}
       </div>
-      {showYoutubeModal && currentVideoBlob && state.script && <YoutubeUploadModal videoBlob={currentVideoBlob} initialTitle={state.script.seoTitle || state.script.title} initialDescription={state.script.longDescription} initialTags={state.script.hashtags} onClose={() => setShowYoutubeModal(false)} />}
+      {showYoutubeModal && currentVideoBlob && state.script && (
+        <YoutubeUploadModal 
+          videoBlob={currentVideoBlob} 
+          initialTitle={state.script.seoTitle || state.script.title} 
+          initialDescription={state.script.longDescription || state.script.description || ''} 
+          initialTags={state.script.hashtags} 
+          onClose={() => setShowYoutubeModal(false)} 
+        />
+      )}
     </div>
   );
 };

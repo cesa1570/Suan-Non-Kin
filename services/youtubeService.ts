@@ -1,4 +1,3 @@
-
 /**
  * YouTube Service
  * Handles interactions with YouTube Data API v3
@@ -15,14 +14,15 @@ export const uploadVideoToYouTube = async (
   accessToken: string,
   privacy: 'public' | 'private' | 'unlisted' = 'private',
   tags: string[] = [],
-  publishAt?: string // [New] ISO 8601 format timestamp
+  publishAt?: string // [เพิ่ม] พารามิเตอร์สำหรับรับเวลาตั้งโพสต์ (ISO 8601 format)
 ): Promise<any> => {
   
-  // [Important] YouTube API requires scheduled videos to have 'private' status initially.
-  // It will transition to public automatically at the scheduled time.
+  // [สำคัญ] หากมีการระบุเวลา (Schedule) ต้องตั้งสถานะเป็น 'private' เท่านั้น
+  // YouTube จะเปลี่ยนเป็น public ให้อัตโนมัติตามเวลาที่กำหนด
   const finalPrivacy = publishAt ? 'private' : privacy;
 
   // 1. Prepare Metadata for the video resource
+  // ใช้ any เพื่อให้ใส่ publishAt ได้ง่ายขึ้น (หรือจะแก้ Interface ก็ได้)
   const metadata: any = {
     snippet: {
       title: title.substring(0, 100), // YouTube title limit is 100 chars
@@ -37,7 +37,7 @@ export const uploadVideoToYouTube = async (
     }
   };
 
-  // [New] Add publishAt to status if provided
+  // [เพิ่ม] ใส่ค่า publishAt ลงไปใน metadata ถ้ามีส่งมา
   if (publishAt) {
     metadata.status.publishAt = publishAt;
   }

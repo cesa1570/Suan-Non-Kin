@@ -13,6 +13,7 @@ interface TrendingNewsProps {
   region: 'global' | 'thailand';
   setRegion: (r: 'global' | 'thailand') => void;
   onSelectTopic: (topic: string, type: 'video' | 'social' | 'podcast', region: 'global' | 'thailand', autoPilot?: boolean) => void;
+  apiKey: string;
 }
 
 const CATEGORIES = [

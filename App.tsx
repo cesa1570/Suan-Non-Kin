@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
-  LayoutDashboard, Video, Zap, Newspaper, Share2, Clapperboard, 
-  Mic, Activity, Key, Youtube, Grid, FileEdit, CheckCircle2 
+  LayoutDashboard, Video, Zap, Newspaper, Clapperboard, 
+  Youtube, Grid, FileEdit, Key 
 } from 'lucide-react';
 
 // Components
@@ -11,8 +10,6 @@ import Hub from './components/Hub';
 import ShortsCreator from './components/ShortsCreator';
 import LongVideoCreator from './components/LongVideoCreator';
 import TrendingNews from './components/TrendingNews';
-import SocialPostGenerator from './components/SocialPostGenerator';
-import PodcastCreator from './components/PodcastCreator';
 import YoutubeManager from './components/YoutubeManager';
 import ManualStoryBoard from './components/ManualStoryBoard'; 
 import AutomationEngine from './components/AutomationEngine';
@@ -20,21 +17,10 @@ import AutomationEngine from './components/AutomationEngine';
 import { NewsItem } from './types';
 import { AutomationProvider } from './contexts/AutomationContext';
 
-// Fix: AI Studio API types for global window object
-declare global {
-  interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
-
-// Fix: Expand AppContextType to include API key management methods
 interface AppContextType {
   apiKey: string;
   setApiKey: (key: string) => void;
-  openKeySelection: () => Promise<void>;
+  openKeySelection: () => void;
   resetKeyStatus: () => void;
   hasSelectedKey: boolean;
 }
@@ -48,14 +34,13 @@ export const useApp = () => {
 };
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'hub' | 'dashboard' | 'create' | 'long' | 'news' | 'social' | 'podcast' | 'youtube' | 'manual'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'dashboard' | 'create' | 'long' | 'news' | 'youtube' | 'manual'>('hub');
   
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<'Thai' | 'English'>('Thai');
   
-  // Fix: Use environment provided API key and manage selection state via AI Studio API
-  const [apiKey, setApiKey] = useState<string>(process.env.API_KEY || '');
-  const [hasSelectedKey, setHasSelectedKey] = useState(false);
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('user_gemini_key') || '');
+  const [showKeyModal, setShowKeyModal] = useState(false);
   
   const [ytConnected, setYtConnected] = useState(!!localStorage.getItem('yt_access_token'));
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
@@ -65,15 +50,6 @@ const App: React.FC = () => {
   const FREE_TIER_LIMIT = 1500;
 
   useEffect(() => {
-    // Fix: Key selection verification per guidelines
-    const checkKeySelection = async () => {
-      if (window.aistudio) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasSelectedKey(selected);
-      }
-    };
-    checkKeySelection();
-
     const today = new Date().toDateString();
     if (localStorage.getItem('gemini-usage-date') !== today) {
       localStorage.setItem('gemini-usage-date', today);
@@ -98,26 +74,20 @@ const App: React.FC = () => {
 
   const handleSetApiKey = (key: string) => {
     setApiKey(key);
+    localStorage.setItem('user_gemini_key', key);
+    setShowKeyModal(false);
   };
 
-  // Fix: Selection triggers for key management via openSelectKey
-  const openKeySelection = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasSelectedKey(true); // Assuming success as per race condition notes
-    }
-  };
-
+  const openKeySelection = () => setShowKeyModal(true);
   const resetKeyStatus = () => {
-    setHasSelectedKey(false);
+    setApiKey('');
+    localStorage.removeItem('user_gemini_key');
   };
 
   const handleNewsTopicSelect = (topic: string, type: 'video' | 'social' | 'podcast', region: 'global' | 'thailand') => {
     setSelectedTopic(topic);
     setSelectedLanguage(region === 'global' ? 'English' : 'Thai');
-    if (type === 'video') setActiveTab('create');
-    else if (type === 'podcast') setActiveTab('podcast');
-    else setActiveTab('social');
+    setActiveTab('create');
   };
 
   const NavItem = ({ id, label, icon: Icon, badge }: { id: any, label: string, icon: any, badge?: boolean }) => (
@@ -137,13 +107,16 @@ const App: React.FC = () => {
     </button>
   );
 
-  const usagePercent = Math.min(100, (apiRequestsToday / FREE_TIER_LIMIT) * 100);
-
   return (
-    <AppContext.Provider value={{ apiKey, setApiKey: handleSetApiKey, openKeySelection, resetKeyStatus, hasSelectedKey }}>
-      <AutomationProvider>
-        {/* Fix: AutomationEngine does not take props */}
-        <AutomationEngine />
+    <AppContext.Provider value={{ 
+      apiKey, 
+      setApiKey: handleSetApiKey,
+      openKeySelection,
+      resetKeyStatus,
+      hasSelectedKey: !!apiKey
+    }}>
+      <AutomationProvider apiKey={apiKey}>
+        <AutomationEngine apiKey={apiKey} />
         
         <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
           
@@ -158,18 +131,26 @@ const App: React.FC = () => {
                 <NavItem id="manual" label="Manual Studio" icon={FileEdit} />
                 <NavItem id="create" label="Shorts Creator" icon={Video} />
                 <NavItem id="long" label="Long Video" icon={Clapperboard} />
-                <NavItem id="podcast" label="Podcast Creator" icon={Mic} />
+                
                 <p className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4 mt-8">Intelligence</p>
                 <NavItem id="news" label="Trending Trends" icon={Newspaper} />
-                <NavItem id="social" label="Social Post" icon={Share2} />
+                
                 <NavItem id="dashboard" label="Analytics" icon={LayoutDashboard} />
                 <p className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4 mt-8">Publication</p>
                 <NavItem id="youtube" label="YouTube Studio" icon={Youtube} badge={true} />
             </div>
             <div className="space-y-6 pt-6 border-t border-slate-800">
-               {/* Fix: Replaced manual key modal with standardized selection UI */}
-               <button onClick={openKeySelection} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${hasSelectedKey ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                    <div className="flex items-center gap-2"><Key size={14} /> {hasSelectedKey ? 'Pro Key Active' : 'Select API Key'}</div>
+               <div className="px-4">
+                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2 text-slate-500">
+                    <span>Daily Quota</span>
+                    <span>{apiRequestsToday} / {FREE_TIER_LIMIT}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${apiRequestsToday > FREE_TIER_LIMIT ? 'bg-red-500' : 'bg-purple-500'}`} style={{ width: `${(apiRequestsToday / FREE_TIER_LIMIT) * 100}%` }}></div>
+                  </div>
+               </div>
+               <button onClick={() => setShowKeyModal(true)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${apiKey ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                    <div className="flex items-center gap-2"><Key size={14} /> {apiKey ? 'Pro Key Active' : 'Set API Key'}</div>
                </button>
             </div>
           </aside>
@@ -185,7 +166,7 @@ const App: React.FC = () => {
                 </header>
                 
                 <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
-                    {activeTab === 'hub' && <Hub onNavigate={setActiveTab} />}
+                    {activeTab === 'hub' && <Hub onNavigate={(tab) => setActiveTab(tab)} />}
                     {activeTab === 'dashboard' && <Dashboard />}
                     
                     {activeTab === 'manual' && (
@@ -196,25 +177,40 @@ const App: React.FC = () => {
                         />
                     )}
 
-                    {/* Fix: Creators utilize AppContext for selection state and process.env.API_KEY internally, removed unused props */}
-                    {activeTab === 'create' && <ShortsCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
-                    {activeTab === 'long' && <LongVideoCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
-                    {activeTab === 'podcast' && <PodcastCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
+                    {activeTab === 'create' && <ShortsCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
+                    {activeTab === 'long' && <LongVideoCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
                     
                     {activeTab === 'news' && (
                         <TrendingNews 
                             news={newsItems} setNews={setNewsItems} 
                             loading={newsLoading} setLoading={setNewsLoading} 
                             region={newsRegion} setRegion={setNewsRegion}
-                            onSelectTopic={handleNewsTopicSelect}
+                            onSelectTopic={handleNewsTopicSelect} apiKey={apiKey}
                         />
                     )}
-                    {activeTab === 'social' && <SocialPostGenerator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
+                    
                     {activeTab === 'youtube' && <YoutubeManager />}
                 </div>
             </div>
           </main>
         </div>
+
+        {/* Modal Key */}
+        {showKeyModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
+                    <button onClick={() => setShowKeyModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition">✕</button>
+                    <h3 className="text-2xl font-black text-white uppercase mb-2 text-center">Enter Gemini API Key</h3>
+                    <input 
+                        type="password" placeholder="Paste API Key here..." 
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white mb-4 outline-none"
+                        defaultValue={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)} 
+                    />
+                    <button onClick={() => handleSetApiKey(apiKey)} className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold uppercase tracking-widest transition-all">Save & Unlock</button>
+                </div>
+            </div>
+        )}
       </AutomationProvider>
     </AppContext.Provider>
   );

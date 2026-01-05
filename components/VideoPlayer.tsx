@@ -1,15 +1,12 @@
-
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { Scene, SubtitleStyle } from '../types';
 import {
   Play, Pause, Loader2, VolumeX, Volume2, 
-  Subtitles
+  Subtitles, Maximize2, Minimize2, X 
 } from 'lucide-react';
 
 // --- Utility Helpers ---
-
-// 1. Easing Function for Smooth Motion (Ken Burns นุ่มๆ)
-const easeOutQuad = (t: number) => t * (2 - t);
+const easeInOutSine = (x: number): number => -(Math.cos(Math.PI * x) - 1) / 2;
 
 const formatTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -74,7 +71,6 @@ interface VideoPlayerProps {
   onPlaybackChange?: (isPlaying: boolean) => void;
 }
 
-// Fix: Expanded onProgress signature to include frame information for callers
 export interface VideoPlayerRef {
   renderVideo: (
     onProgress?: (percent: number, stage: string, currentFrame?: number, totalFrames?: number) => void,
@@ -114,6 +110,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   // State
   const [isPlaying, setIsPlaying] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
@@ -137,7 +134,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   const activeScenes = useMemo(() => (scenes || []).filter(s => s.status === 'completed'), [scenes]);
   const isLandscape = aspectRatio === '16:9';
   const BASE_WIDTH = isLandscape ? 1920 : 1080;
-  const FPS = 30;
+  
+  // FPS for smoothness
+  const FPS = 60; 
 
   // --- Asset Loading ---
   useEffect(() => {
@@ -172,10 +171,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   const drawFrame = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
-    // 1. High Quality Settings
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
@@ -189,9 +187,8 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         elapsed = pauseTimeRef.current;
     }
 
-    if (Math.abs(elapsed - currentTime) > 0.1) setCurrentTime(elapsed);
+    if (Math.abs(elapsed - currentTime) > 0.05) setCurrentTime(elapsed);
 
-    // 🔥 FIX: คำนวณเวลาแบบสะสม (Cumulative) เพื่อป้องกัน Index เพี้ยน
     const timestamps = sceneTimestampsRef.current.length > 0 
         ? sceneTimestampsRef.current 
         : (() => {
@@ -246,16 +243,16 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         const sw = source instanceof HTMLVideoElement ? source.videoWidth : source.width;
         const sh = source instanceof HTMLVideoElement ? source.videoHeight : source.height;
         
-        // --- Layer 2: Visuals with Ken Burns & Grading ---
+        // --- Layer 2: Visuals with Ken Burns (Improved Smoothness) ---
         const sceneDuration = timestamp.end - timestamp.start;
         const rawProgress = Math.max(0, Math.min(1, (elapsed - timestamp.start) / sceneDuration));
-        const smoothProgress = easeOutQuad(rawProgress); // Smooth easing
         
-        const maxZoom = source instanceof HTMLVideoElement ? 1.05 : 1.15;
+        const smoothProgress = easeInOutSine(rawProgress); 
+        
+        const maxZoom = source instanceof HTMLVideoElement ? 1.05 : 1.08; 
         const zoomLevel = 1.0 + (smoothProgress * (maxZoom - 1.0));
         
-        // Audio Pulse
-        const beatPulse = (isPlayingRef.current && audioLevel > 0.2) ? (audioLevel * 0.015) : 0;
+        const beatPulse = (isPlayingRef.current && audioLevel > 0.2) ? (audioLevel * 0.008) : 0;
         const totalScale = zoomLevel + beatPulse;
 
         const ratio = Math.max(canvas.width / sw, canvas.height / sh) * totalScale;
@@ -264,30 +261,32 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         
         ctx.save();
         
-        // 🎨 CINEMATIC COLOR GRADING
-        ctx.filter = 'contrast(1.08) saturate(1.12) brightness(0.98)';
+        ctx.filter = 'contrast(1.05) saturate(1.1) brightness(0.98)';
 
         ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.drawImage(source, -dw / 2, -dh / 2, dw, dh);
         
-        ctx.filter = 'none'; // Reset filter
+        const tx = -dw / 2;
+        const ty = -dh / 2;
+        ctx.drawImage(source, tx, ty, dw, dh);
+        
+        ctx.filter = 'none';
         ctx.restore();
 
-        // --- Layer 3: Vignette (Dark Corners) ---
+        // --- Layer 3: Vignette ---
         ctx.save();
         const gradient = ctx.createRadialGradient(
-            canvas.width / 2, canvas.height / 2, canvas.height * 0.4, 
-            canvas.width / 2, canvas.height / 2, canvas.height * 0.85
+            canvas.width / 2, canvas.height / 2, canvas.height * 0.45, 
+            canvas.width / 2, canvas.height / 2, canvas.height * 0.95
         );
         gradient.addColorStop(0, "rgba(0,0,0,0)");
-        gradient.addColorStop(1, "rgba(0,0,0,0.5)"); // 50% darkness at edges
+        gradient.addColorStop(1, "rgba(0,0,0,0.6)");
         
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
     }
 
-    // --- Layer 4: Pro Subtitles ---
+    // --- Layer 4: Subtitles ---
     if (!hideSubtitles) {
       const textToDraw = (isPlayingRef.current || isRenderingRef.current) && scene ? scene.voiceover : (isReady && activeScenes.length > 0 ? activeScenes[0].voiceover : previewText);
       
@@ -309,7 +308,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
           const pad = fontSize * 0.3;
           ctx.save();
           
-          // Sub-Layer A: Background Box
           if (subtitleStyle.backgroundOpacity > 0) {
             ctx.shadowColor = "rgba(0,0,0,0.4)";
             ctx.shadowBlur = 12 * scale;
@@ -326,10 +324,9 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
             } else {
               ctx.fillRect(bx, by, bw, bh);
             }
-            ctx.shadowBlur = 0; // Reset
+            ctx.shadowBlur = 0;
           }
 
-          // Sub-Layer B: Glow (Reading safety)
           ctx.shadowColor = "rgba(0,0,0,0.9)";
           ctx.shadowBlur = 8 * scale;
           ctx.lineWidth = (subtitleStyle.outlineWidth || 4) * scale * 2.5;
@@ -337,12 +334,10 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
           ctx.lineJoin = 'round';
           ctx.strokeText(line, canvas.width / 2, ly);
 
-          // Sub-Layer C: Sharp Outline
           ctx.shadowBlur = 0;
           ctx.lineWidth = (subtitleStyle.outlineWidth || 4) * scale * 1.5;
           ctx.strokeText(line, canvas.width / 2, ly);
           
-          // Sub-Layer D: Text Fill
           ctx.fillStyle = subtitleStyle.textColor;
           ctx.fillText(line, canvas.width / 2, ly);
           
@@ -468,7 +463,7 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
       }
   };
 
-  // --- 🔥 EXPORT LOGIC (FIXED) ---
+  // --- 🔥 EXPORT LOGIC ---
   useImperativeHandle(ref, () => ({
     renderVideo: async (onProgress, options) => {
       if (activeScenes.length === 0) throw new Error("Synthesis Required");
@@ -499,7 +494,6 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
       const canvasStream = canvas.captureStream(FPS);
       const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
       
-      // High Bitrate (25 Mbps) for Cinematic Quality
       const recorder = new MediaRecorder(combinedStream, { 
         mimeType, 
         videoBitsPerSecond: options?.bitrate || 25000000 
@@ -521,23 +515,20 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
 
         startPlayback(audioCtx, dest, 0).then((totalDur) => {
           
-          // 🔥 FIX: เพิ่ม Buffer ท้ายคลิป 1.5 วินาที กันตัดจบ
-          const END_BUFFER = 1.5; 
+          const END_BUFFER = 1.0; 
           const finalDuration = totalDur + END_BUFFER;
 
           const renderInterval = setInterval(() => {
             const elapsed = audioCtx.currentTime - masterStartTimeRef.current;
             const progress = Math.min(99, Math.floor((elapsed / totalDur) * 100));
             
-            // Fix: Calculate frame info and provide 4 arguments to onProgress
             const cf = Math.floor(elapsed * FPS);
             const tf = Math.floor(totalDur * FPS);
-            onProgress?.(progress, `Exporting... ${(elapsed).toFixed(1)}s / ${totalDur.toFixed(1)}s`, cf, tf);
+            onProgress?.(progress, `Rendering High Quality... ${(elapsed).toFixed(1)}s`, cf, tf);
             
             if (elapsed >= finalDuration) { 
               clearInterval(renderInterval);
               if (recorder.state === 'recording') {
-                // 🔥 FIX: Force flush data
                 recorder.requestData(); 
                 setTimeout(() => {
                     recorder.stop();
@@ -545,14 +536,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                 }, 100);
               }
             }
-          }, 100);
+          }, 50);
         }).catch(reject);
       });
     },
     togglePlayback: handlePlay
   }));
 
-  // --- Animation Loop (FIXED DEPENDENCIES) ---
+  // --- Animation Loop ---
   useEffect(() => {
     let anim: number; 
     const loop = () => { drawFrame(); anim = requestAnimationFrame(loop); };
@@ -565,25 +556,35 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
       voiceSpeed, 
       hideSubtitles, 
       isReady,
-      // 🔥 FIX: ใส่ Dependency ให้ครบ เพื่อให้ Loop รู้จักซีนใหม่ๆ
       activeScenes,
-      loadedImages
+      loadedImages,
+      audioLevel
   ]);
 
-  // --- UI Render ---
-  return (
-    <div ref={containerRef} className="w-full h-full flex flex-col bg-neutral-950 rounded-xl overflow-hidden shadow-2xl border border-neutral-800">
+  // --- ✅ Main UI Component ---
+  const PlayerContent = () => (
+    <div ref={containerRef} className="w-full h-full flex flex-col bg-neutral-950 rounded-xl overflow-hidden shadow-2xl border border-neutral-800 relative transition-all duration-300 group/main">
       
+      {/* Close Button when Expanded */}
+      {isExpanded && (
+        <button 
+          onClick={() => setIsExpanded(false)}
+          className="absolute top-4 right-4 z-[60] p-3 rounded-full bg-black/50 hover:bg-white/20 text-white backdrop-blur-md transition-all opacity-0 group-hover/main:opacity-100"
+        >
+          <X size={24} />
+        </button>
+      )}
+
       <div className="relative flex-1 flex items-center justify-center bg-black overflow-hidden group/player select-none">
         <canvas 
           ref={canvasRef} 
           width={BASE_WIDTH} 
           height={isLandscape ? 1080 : 1920} 
-          className="max-w-full max-h-full object-contain shadow-lg"
+          className="max-w-full max-h-full object-contain shadow-2xl z-10"
         />
 
         {!isPlaying && !isRendering && isReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-all cursor-pointer" onClick={handlePlay}>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-all cursor-pointer z-20" onClick={handlePlay}>
             <div className="p-6 rounded-full bg-white/10 border border-white/20 backdrop-blur-md shadow-2xl transform hover:scale-110 transition-all group-hover/player:bg-orange-600/90 group-hover/player:border-orange-500">
                <Play size={48} fill="white" className="ml-1 text-white"/>
             </div>
@@ -600,13 +601,14 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
         )}
       </div>
 
-      <div className="h-16 bg-neutral-900 border-t border-neutral-800 flex items-center px-4 gap-4 z-20 select-none">
+      {/* Controls Bar */}
+      <div className="h-16 bg-neutral-900/90 backdrop-blur-lg border-t border-neutral-800 flex items-center px-6 gap-4 z-20 select-none">
         <button 
           onClick={handlePlay}
           disabled={!isReady || isRendering}
           className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors disabled:opacity-50"
         >
-          {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+          {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" />}
         </button>
 
         <div className="text-xs font-mono text-neutral-400 min-w-[80px]">
@@ -624,13 +626,13 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
           <div className="absolute inset-0 bg-white/0 group-hover/timeline:bg-white/10 transition-colors" />
         </div>
 
-        <div className="flex items-center gap-2 border-l border-neutral-800 pl-4">
+        <div className="flex items-center gap-3 border-l border-neutral-800 pl-4">
            <button 
              onClick={onToggleSubtitles}
              className={`p-2 rounded-lg transition-colors ${hideSubtitles ? 'text-neutral-500 hover:text-white' : 'text-orange-500 bg-orange-500/10'}`}
              title="Toggle Subtitles"
            >
-             <Subtitles size={18} />
+             <Subtitles size={20} />
            </button>
 
            <div className="flex items-center gap-2 text-neutral-400 w-24">
@@ -639,10 +641,39 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                <div className="h-full bg-neutral-500" style={{ width: `${bgmVolume * 100}%` }} />
              </div>
            </div>
+
+           {/* ✅ ปุ่ม Expand / Collapse */}
+           <button 
+             onClick={() => setIsExpanded(!isExpanded)}
+             className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors ml-2"
+             title={isExpanded ? "Exit Fullscreen" : "Fullscreen Overlay"}
+           >
+             {isExpanded ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+           </button>
         </div>
       </div>
     </div>
   );
+
+  // ✅ ถ้า isExpanded เป็น true ให้แสดงเป็น Overlay
+  if (isExpanded) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center animate-in fade-in duration-300">
+        {/* Blurred Backdrop */}
+        <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-xl transition-all"
+            onClick={() => setIsExpanded(false)} // คลิกนอกกรอบเพื่อปิด
+        />
+        {/* Video Player Container (Pop-up) */}
+        <div className="relative w-[90vw] h-[85vh] max-w-6xl max-h-[900px] z-[110] shadow-2xl animate-in zoom-in-95 duration-300">
+           <PlayerContent />
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ ถ้าไม่ Expanded ก็แสดงแบบปกติ
+  return <PlayerContent />;
 });
 
 export default VideoPlayer;
