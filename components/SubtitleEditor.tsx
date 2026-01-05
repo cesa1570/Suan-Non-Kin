@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { SubtitleStyle } from '../types';
 import { 
@@ -8,6 +9,7 @@ import {
 interface SubtitleEditorProps {
   style: SubtitleStyle;
   onChange: (updates: Partial<SubtitleStyle>) => void;
+  presetType?: string; // Fix: Add optional presetType prop
 }
 
 const PRESETS: Record<string, SubtitleStyle> = {
@@ -28,7 +30,7 @@ const PRESETS: Record<string, SubtitleStyle> = {
   }
 };
 
-const SubtitleEditor: React.FC<SubtitleEditorProps> = ({ style, onChange }) => {
+const SubtitleEditor: React.FC<SubtitleEditorProps> = ({ style, onChange, presetType }) => {
   
   // Helper to convert hex to rgba for preview
   const getShadowString = () => {
@@ -76,7 +78,7 @@ const SubtitleEditor: React.FC<SubtitleEditorProps> = ({ style, onChange }) => {
       {/* 2. Presets */}
       <div className="space-y-3">
         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-            <LayoutTemplate size={12}/> Quick Presets
+            <LayoutTemplate size={12}/> Quick Presets {presetType && `(${presetType})`}
         </label>
         <div className="grid grid-cols-3 gap-3">
             {Object.entries(PRESETS).map(([name, s]) => {

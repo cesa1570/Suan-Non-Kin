@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Youtube, X, Send, Loader2, CheckCircle2, AlertCircle, Globe, Lock, EyeOff, Hash, AlertTriangle } from 'lucide-react';
+import { Youtube, X, Send, Loader2, CheckCircle2, AlertCircle, Globe, Lock, EyeOff, Hash, AlertTriangle, Clock } from 'lucide-react';
 import { uploadVideoToYouTube } from '../services/youtubeService';
 
 interface YoutubeUploadModalProps {
@@ -17,6 +17,7 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
   const [title, setTitle] = useState(initialTitle.substring(0, 100));
   const [description, setDescription] = useState(initialDescription);
   const [tags, setTags] = useState(initialTags.join(', '));
+  const [scheduledTime, setScheduledTime] = useState<string>('');
   const [privacy, setPrivacy] = useState<'public' | 'private' | 'unlisted'>('private');
 
   const [isUploading, setIsUploading] = useState(false);
@@ -63,13 +64,21 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
     try {
       const tagArray = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
+      // Convert local time to ISO string (UTC) for YouTube
+      let publishAtISO = undefined;
+      if (scheduledTime) {
+         const dateObj = new Date(scheduledTime);
+         publishAtISO = dateObj.toISOString();
+      }
+
       const result = await uploadVideoToYouTube(
         videoBlob,
         title,
         description,
         token,
         privacy,
-        tagArray
+        tagArray,
+        publishAtISO
       );
 
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -99,7 +108,7 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
       
       if (err.message === "YOUTUBE_QUOTA_EXCEEDED") {
         setIsQuotaError(true);
-        errorMsg = "YouTube API Quota Exceeded. โควต้า Google Cloud รายวันของคุณเต็มแล้ว (10,000 units). หมายเหตุ: การอัปโหลดวิดีโอ 1 ครั้งใช้ 1,600 units.";
+        errorMsg = "YouTube API Quota Exceeded. Daily limit reached. Each video upload requires ~1,600 units.";
       } else if (errorMsg.includes("401") || errorMsg.includes("unauthorized")) {
         errorMsg = "Session expired. Please reconnect your YouTube account.";
       } else if (errorMsg.includes("403")) {
@@ -190,13 +199,36 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
                       <button
                         key={opt.id}
                         onClick={() => setPrivacy(opt.id as any)}
-                        disabled={isUploading}
+                        disabled={isUploading || scheduledTime !== ''}
                         className={`py-4 rounded-2xl text-[10px] font-black uppercase flex flex-col items-center gap-2 border transition-all disabled:opacity-50 ${privacy === opt.id ? 'bg-red-600 border-red-500 text-white shadow-xl' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-300'}`}
                       >
                         {opt.icon} {opt.label}
                       </button>
                     ))}
                   </div>
+                  {scheduledTime && (
+                    <p className="text-[8px] text-blue-400 mt-2 font-bold uppercase tracking-tighter">* Scheduling requires Private status</p>
+                  )}
+                </div>
+
+                <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                    <Clock size={12} className="text-red-500" /> Schedule Publication (Optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledTime}
+                    min={new Date().toISOString().slice(0, 16)}
+                    onChange={(e) => {
+                      setScheduledTime(e.target.value);
+                      if (e.target.value) setPrivacy('private');
+                    }}
+                    disabled={isUploading}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-sm font-kanit outline-none focus:ring-2 focus:ring-red-600/30 transition-all disabled:opacity-50"
+                  />
+                  {scheduledTime && (
+                    <p className="text-[9px] text-slate-500 mt-2 italic">YouTube will auto-publish at this time.</p>
+                  )}
                 </div>
 
                 <div>
@@ -248,10 +280,10 @@ const YoutubeUploadModal: React.FC<YoutubeUploadModalProps> = ({
                 <button
                   onClick={handleUpload}
                   disabled={!title || isQuotaError}
-                  className={`w-full py-6 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group ${isQuotaError ? 'bg-slate-800 shadow-none' : 'bg-red-600 shadow-red-900/40 hover:bg-red-50'}`}
+                  className={`w-full py-6 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed group ${isQuotaError ? 'bg-slate-800 shadow-none' : 'bg-red-600 shadow-red-900/40 hover:bg-red-500'}`}
                 >
                   <Send size={24} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                  {isQuotaError ? 'Quota Exceeded' : 'Launch Publication'}
+                  {isQuotaError ? 'Quota Exceeded' : scheduledTime ? 'Schedule Broadcast' : 'Launch Publication'}
                 </button>
               )}
             </div>

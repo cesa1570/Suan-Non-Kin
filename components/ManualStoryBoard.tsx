@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Scene } from '../types';
 import { 
@@ -106,10 +107,10 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, initi
 
   const handleGenerateAudio = async (scene: Scene) => {
     if (!scene.voiceover) return alert("Please type text.");
-    if (!apiKey) return alert("Please set API Key first.");
     handleUpdateScene(scene.id, { status: 'generating', assetStage: 'audio', processingProgress: 20 });
     try {
-      const base64Audio = await generateVoiceover(apiKey, scene.voiceover, 'th-TH-Standard-A');
+      // Fix: generateVoiceover only takes text and voiceName
+      const base64Audio = await generateVoiceover(scene.voiceover, 'th-TH-Standard-A');
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const audioBuffer = await decodeAudioDataHelper(base64Audio, ctx);
       handleUpdateScene(scene.id, { 
@@ -177,6 +178,7 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, initi
                  </button>
               </div>
 
+              {/* Fix: Removed unsupported onDuplicateScene prop from SceneManager */}
               <SceneManager 
                  scenes={scenes}
                  isProcessingAll={false}
@@ -187,7 +189,6 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, initi
                  onReorder={handleReorder}
                  onDragReorder={handleDragReorder}
                  onDelete={handleDeleteScene}
-                 onDuplicateScene={handleDuplicate}
                  onAddScene={handleAddScene}
                  onRefinePrompt={undefined} 
                  onAutoStoryboard={undefined}

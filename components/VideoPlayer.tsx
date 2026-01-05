@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { Scene, SubtitleStyle } from '../types';
 import {
@@ -73,9 +74,10 @@ interface VideoPlayerProps {
   onPlaybackChange?: (isPlaying: boolean) => void;
 }
 
+// Fix: Expanded onProgress signature to include frame information for callers
 export interface VideoPlayerRef {
   renderVideo: (
-    onProgress?: (percent: number, stage: string) => void,
+    onProgress?: (percent: number, stage: string, currentFrame?: number, totalFrames?: number) => void,
     options?: RenderOptions
   ) => Promise<{ blob: Blob, extension: string }>;
   togglePlayback: () => void;
@@ -526,7 +528,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
           const renderInterval = setInterval(() => {
             const elapsed = audioCtx.currentTime - masterStartTimeRef.current;
             const progress = Math.min(99, Math.floor((elapsed / totalDur) * 100));
-            onProgress?.(progress, `Exporting... ${(elapsed).toFixed(1)}s / ${totalDur.toFixed(1)}s`);
+            
+            // Fix: Calculate frame info and provide 4 arguments to onProgress
+            const cf = Math.floor(elapsed * FPS);
+            const tf = Math.floor(totalDur * FPS);
+            onProgress?.(progress, `Exporting... ${(elapsed).toFixed(1)}s / ${totalDur.toFixed(1)}s`, cf, tf);
             
             if (elapsed >= finalDuration) { 
               clearInterval(renderInterval);

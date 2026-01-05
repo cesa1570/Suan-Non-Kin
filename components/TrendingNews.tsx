@@ -4,6 +4,7 @@ import { Flame, RefreshCw, Globe, MapPin, Search, Video, X, Clock, Calendar, Eye
 import { fetchTrendingNews } from '../services/geminiService';
 import { NewsItem } from '../types';
 
+// Fix: Removed apiKey from TrendingNewsProps
 interface TrendingNewsProps {
   news: NewsItem[];
   setNews: (items: NewsItem[]) => void;

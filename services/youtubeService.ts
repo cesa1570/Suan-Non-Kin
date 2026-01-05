@@ -14,11 +14,16 @@ export const uploadVideoToYouTube = async (
   description: string,
   accessToken: string,
   privacy: 'public' | 'private' | 'unlisted' = 'private',
-  tags: string[] = []
+  tags: string[] = [],
+  publishAt?: string // [New] ISO 8601 format timestamp
 ): Promise<any> => {
   
+  // [Important] YouTube API requires scheduled videos to have 'private' status initially.
+  // It will transition to public automatically at the scheduled time.
+  const finalPrivacy = publishAt ? 'private' : privacy;
+
   // 1. Prepare Metadata for the video resource
-  const metadata = {
+  const metadata: any = {
     snippet: {
       title: title.substring(0, 100), // YouTube title limit is 100 chars
       description: description + "\n\n#Shorts #AI #AutoShorts", // Appending default tags
@@ -26,11 +31,16 @@ export const uploadVideoToYouTube = async (
       categoryId: "22" // Category ID 22 is 'People & Blogs'
     },
     status: {
-      privacyStatus: privacy,
+      privacyStatus: finalPrivacy,
       selfDeclaredMadeForKids: false,
       embeddable: true
     }
   };
+
+  // [New] Add publishAt to status if provided
+  if (publishAt) {
+    metadata.status.publishAt = publishAt;
+  }
 
   // 2. Create multipart/related request body
   const formData = new FormData();
