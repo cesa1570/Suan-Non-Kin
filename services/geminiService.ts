@@ -183,33 +183,53 @@ export const generateLongVideoScript = async (
   languageOverride?: 'Thai' | 'English',
   durationMinutes: number = 10,
   style: string = 'Cinematic',
-  textModel: string = 'gemini-3-pro-preview'
+  textModel: string = 'gemini-3-pro-preview' // แนะนำรุ่น Pro เพื่อความฉลาด
 ): Promise<ScriptData> => {
   return withRetry(async () => {
     const ai = getClient();
     const styleDirectives = STYLE_DIRECTIVES[style] || STYLE_DIRECTIVES['Cinematic'];
     
-    // STRICT: Detect language from topic
+    // คำนวณเป้าหมายจำนวนคำ (พูดปกติ ~140 คำ/นาที)
+    const targetWordCount = durationMinutes * 140; 
+    
     const detectedLang = detectLanguage(topic);
     const targetLang = (detectedLang === 'English') ? 'English' : (languageOverride || 'Thai');
     
-    const systemInstruction = `You are a High-End Cinema Director and Documentary Scriptwriter.
-    STRICT LANGUAGE POLICY:
-    - YOU MUST MIRROR THE LANGUAGE OF THE TOPIC.
-    - TOPIC: "${topic}"
-    - IF TOPIC IS ENGLISH: Use sophisticated English for 'voiceover', 'title', 'longDescription', 'seoTitle'.
-    - IF TOPIC IS THAI: Use professional Thai for 'voiceover', 'title', 'longDescription', 'seoTitle'.
-    - NO MIXING. If topic is English, do not output Thai.
-    - 'visual_prompt' entries MUST be in vivid, technical English regardless of script language.
-
-    ARTISTIC DIRECTION: ${style}.
-    TECHNICAL SPECS: ${styleDirectives}.
+    // 🔥 PROMPT ที่อัปเกรดแล้วสำหรับสาย DEEP DIVE
+    const systemInstruction = `You are a World-Class Documentary Filmmaker and Subject Matter Expert (History/Science/Tech).
     
-    STRUCTURE: 10 to 25 sequential scenes. Educational and immersive.`;
+    YOUR GOAL: Create a "Deep Dive" video script (Video Essay style).
+    
+    STRICT LANGUAGE POLICY:
+    - TOPIC: "${topic}"
+    - TARGET LANGUAGE: ${targetLang} (Must output in this language only).
+    - 'visual_prompt' MUST remain in English (Technical description).
+
+    CONTENT DEPTH GUIDELINES (CRITICAL):
+    1. NO FLUFF: Avoid generic phrases like "In today's video..." or "Let's dive in." Start with a hook.
+    2. FACT-DENSE: Every paragraph must contain specific dates, names, statistics, or scientific principles.
+    3. NUANCE: Do not just state facts; explain the *implications*, *causes*, and *effects*.
+    4. UNKNOWN DETAILS: Include trivia or insights that the average person doesn't know.
+    5. STRUCTURE: 
+       - Hook (Mystery/Paradox)
+       - Historical/Contextual Background
+       - The Core Analysis (The "Meat" of the video)
+       - Addressing Misconceptions
+       - Profound Conclusion
+    
+    ARTISTIC DIRECTION: ${style}.
+    TECHNICAL SPECS: ${styleDirectives}.`;
 
     const response = await ai.models.generateContent({
       model: textModel as any,
-      contents: `Draft an in-depth documentary script in ${targetLang} about: "${topic}". Mirror the input language exactly.`,
+      contents: `Generate a highly detailed, educational documentary script about: "${topic}".
+      
+      PARAMETERS:
+      - Duration: ${durationMinutes} Minutes.
+      - Target Word Count: Approximately ${targetWordCount} words (Make the script long and detailed to fit the time).
+      - Tone: Intellectual, Authoritative, yet Engaging (Like 'Lemmino' or 'Veritasium').
+      
+      Provide 10 to 30 sequential scenes covering the topic in extreme depth.`,
       config: { 
         systemInstruction, 
         responseMimeType: "application/json",
@@ -222,13 +242,14 @@ export const generateLongVideoScript = async (
             hashtags: { type: Type.ARRAY, items: { type: Type.STRING } },
             scenes: {
               type: Type.ARRAY,
-              minItems: 10, maxItems: 25,
+              minItems: 10, 
+              maxItems: 40, // เพิ่ม Max items เพราะบทยาวขึ้น
               items: {
                 type: Type.OBJECT,
                 properties: {
                   id: { type: Type.INTEGER },
                   visual_prompt: { type: Type.STRING },
-                  voiceover: { type: Type.STRING },
+                  voiceover: { type: Type.STRING }, // AI จะพยายามเขียนให้ยาวขึ้นตรงนี้
                   duration_est: { type: Type.NUMBER }
                 },
                 required: ["id", "visual_prompt", "voiceover", "duration_est"]
@@ -294,8 +315,6 @@ export const generateStoryboards = async (topic: string, style: string, scenes: 
 };
 
 // ในไฟล์ geminiService.ts
-
-// ในไฟล์ services/geminiService.ts
 
 export const generateSeoMetadata = async (topic: string, title: string, description: string): Promise<{ hashtags: string[], seoKeywords: string }> => {
   return withRetry(async () => {

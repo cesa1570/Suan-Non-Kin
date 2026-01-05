@@ -1,6 +1,10 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { LayoutDashboard, Video, Zap, Newspaper, Share2, Clapperboard, Mic, Activity, Key, Youtube, Home, Grid } from 'lucide-react';
+import { 
+  LayoutDashboard, Video, Zap, Newspaper, Share2, Clapperboard, 
+  Mic, Activity, Key, Youtube, Grid, FileEdit, CheckCircle2 
+} from 'lucide-react';
+
+// Components
 import Dashboard from './components/Dashboard';
 import Hub from './components/Hub';
 import ShortsCreator from './components/ShortsCreator';
@@ -9,14 +13,15 @@ import TrendingNews from './components/TrendingNews';
 import SocialPostGenerator from './components/SocialPostGenerator';
 import PodcastCreator from './components/PodcastCreator';
 import YoutubeManager from './components/YoutubeManager';
-import { NewsItem } from './types';
-import { AutomationProvider } from './contexts/AutomationContext';
+import ManualStoryBoard from './components/ManualStoryBoard'; 
 import AutomationEngine from './components/AutomationEngine';
 
+import { NewsItem } from './types';
+import { AutomationProvider } from './contexts/AutomationContext';
+
 interface AppContextType {
-  hasSelectedKey: boolean;
-  openKeySelection: () => Promise<void>;
-  resetKeyStatus: () => void;
+  apiKey: string;
+  setApiKey: (key: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -28,21 +33,23 @@ export const useApp = () => {
 };
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'hub' | 'dashboard' | 'create' | 'long' | 'news' | 'social' | 'podcast' | 'youtube'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'dashboard' | 'create' | 'long' | 'news' | 'social' | 'podcast' | 'youtube' | 'manual'>('hub');
+  
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<'Thai' | 'English'>('Thai');
-  const [hasSelectedKey, setHasSelectedKey] = useState(false);
-  const [ytConnected, setYtConnected] = useState(!!localStorage.getItem('yt_access_token'));
   
-  // Persistent News State
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('user_gemini_key') || '');
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  
+  const [ytConnected, setYtConnected] = useState(!!localStorage.getItem('yt_access_token'));
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsRegion, setNewsRegion] = useState<'global' | 'thailand'>('thailand');
-
   const [apiRequestsToday, setApiRequestsToday] = useState(0);
   const FREE_TIER_LIMIT = 1500;
 
   useEffect(() => {
+    // ... (Logic เดิมส่วน Usage tracking ไม่ต้องแก้) ...
     const today = new Date().toDateString();
     if (localStorage.getItem('gemini-usage-date') !== today) {
       localStorage.setItem('gemini-usage-date', today);
@@ -52,30 +59,23 @@ const App: React.FC = () => {
       setApiRequestsToday(parseInt(localStorage.getItem('gemini-usage-count') || '0'));
     }
     const handleUsage = () => setApiRequestsToday(prev => {
-      const next = prev + 1;
-      localStorage.setItem('gemini-usage-count', next.toString());
-      return next;
+        const next = prev + 1;
+        localStorage.setItem('gemini-usage-count', next.toString());
+        return next;
     });
     const handleYtChange = () => setYtConnected(!!localStorage.getItem('yt_access_token'));
     window.addEventListener('gemini-api-usage', handleUsage);
     window.addEventListener('yt-connection-changed', handleYtChange);
     return () => {
-      window.removeEventListener('gemini-api-usage', handleUsage);
-      window.removeEventListener('yt-connection-changed', handleYtChange);
+        window.removeEventListener('gemini-api-usage', handleUsage);
+        window.removeEventListener('yt-connection-changed', handleYtChange);
     };
   }, []);
 
-  useEffect(() => {
-    if ((window as any).aistudio?.hasSelectedApiKey) {
-      (window as any).aistudio.hasSelectedApiKey().then(setHasSelectedKey);
-    }
-  }, []);
-
-  const handleOpenKeySelection = async () => {
-    if ((window as any).aistudio?.openSelectKey) {
-      await (window as any).aistudio.openSelectKey();
-      setHasSelectedKey(true);
-    }
+  const handleSetApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('user_gemini_key', key);
+    setShowKeyModal(false);
   };
 
   const handleNewsTopicSelect = (topic: string, type: 'video' | 'social' | 'podcast', region: 'global' | 'thailand') => {
@@ -106,18 +106,22 @@ const App: React.FC = () => {
   const usagePercent = Math.min(100, (apiRequestsToday / FREE_TIER_LIMIT) * 100);
 
   return (
-    <AppContext.Provider value={{ hasSelectedKey, openKeySelection: handleOpenKeySelection, resetKeyStatus: () => setHasSelectedKey(false) }}>
+    <AppContext.Provider value={{ apiKey, setApiKey: handleSetApiKey }}>
       <AutomationProvider>
-        <AutomationEngine />
+        <AutomationEngine apiKey={apiKey} />
+        
         <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
+          
           <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 z-50 bg-slate-900 border-r border-slate-800/50 shadow-2xl p-6">
+            {/* ... Sidebar Content เหมือนเดิม ... */}
             <div className="flex items-center gap-3 mb-12 mt-2">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-xl"><Zap className="text-white" size={22} fill="currentColor" /></div>
                 <div><h1 className="text-xl font-black text-white tracking-tight leading-none">AutoShorts</h1><span className="text-[10px] text-purple-400 font-black tracking-[0.2em] uppercase">AI Factory</span></div>
             </div>
-            <div className="space-y-1 flex-1 overflow-y-auto pr-2">
+            <div className="space-y-1 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                 <NavItem id="hub" label="Tools Hub" icon={Grid} />
                 <p className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4 mt-8">Studio</p>
+                <NavItem id="manual" label="Manual Studio" icon={FileEdit} /> {/* ✅ Manual อยู่ในลิสต์ปกติ */}
                 <NavItem id="create" label="Shorts Creator" icon={Video} />
                 <NavItem id="long" label="Long Video" icon={Clapperboard} />
                 <NavItem id="podcast" label="Podcast Creator" icon={Mic} />
@@ -129,43 +133,71 @@ const App: React.FC = () => {
                 <NavItem id="youtube" label="YouTube Studio" icon={Youtube} badge={true} />
             </div>
             <div className="space-y-6 pt-6 border-t border-slate-800">
-                <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800/50">
-                    <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-1.5"><Activity size={12} className="text-slate-500" /><span className="text-[10px] font-black text-slate-500 uppercase">Daily Quota</span></div></div>
-                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden p-0.5">{hasSelectedKey ? <div className="h-full w-full bg-gradient-to-r from-emerald-600 to-teal-400 animate-pulse rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div> : <div className={`h-full rounded-full ${usagePercent > 80 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${usagePercent}%` }}></div>}</div>
-                </div>
-                <button onClick={handleOpenKeySelection} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${hasSelectedKey ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500'}`}><Key size={14} />{hasSelectedKey ? 'Pro Active' : 'Free Mode'}</button>
+               {/* ... (Usage bar) ... */}
+               <button onClick={() => setShowKeyModal(true)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${apiKey ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                    <div className="flex items-center gap-2"><Key size={14} /> {apiKey ? 'Pro Key Active' : 'Set API Key'}</div>
+               </button>
             </div>
           </aside>
 
-          <main className="flex-1 md:ml-72 flex flex-col h-screen overflow-hidden">
-            <div className="flex-1 overflow-y-auto pt-12 px-12 pb-12">
+          <main className="flex-1 md:ml-72 flex flex-col h-screen overflow-hidden bg-slate-950">
+            <div className="flex-1 overflow-y-auto pt-12 px-12 pb-12 custom-scrollbar">
                 <header className="mb-12">
-                    <div className="flex items-center gap-2 text-purple-400 text-xs font-black uppercase tracking-widest mb-2"><div className="h-px w-8 bg-purple-500/30"></div><span>Engine Mode</span></div>
-                    <h2 className="text-5xl font-black text-white uppercase tracking-tight">{activeTab === 'hub' ? 'Home' : activeTab}</h2>
+                    <div className="flex items-center gap-2 text-purple-400 text-xs font-black uppercase tracking-widest mb-2">
+                        <div className="h-px w-8 bg-purple-500/30"></div>
+                        <span>Engine Mode</span>
+                    </div>
+                    <h2 className="text-5xl font-black text-white uppercase tracking-tight">{activeTab === 'hub' ? 'Home' : activeTab === 'manual' ? 'Manual Studio' : activeTab}</h2>
                 </header>
+                
                 <div className="animate-in fade-in slide-in-from-bottom-6 duration-700">
                     {activeTab === 'hub' && <Hub onNavigate={setActiveTab} />}
                     {activeTab === 'dashboard' && <Dashboard />}
-                    {activeTab === 'create' && <ShortsCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
-                    {activeTab === 'long' && <LongVideoCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
-                    {activeTab === 'podcast' && <PodcastCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
-                    {activeTab === 'news' && (
-                      <TrendingNews 
-                        news={newsItems} 
-                        setNews={setNewsItems} 
-                        loading={newsLoading} 
-                        setLoading={setNewsLoading} 
-                        region={newsRegion}
-                        setRegion={setNewsRegion}
-                        onSelectTopic={handleNewsTopicSelect} 
-                      />
+                    
+                    {/* ✅ ทำเหมือน Long Video: ใส่เงื่อนไขตรงนี้ และส่ง Props ให้ครบ */}
+                    {activeTab === 'manual' && (
+                        <ManualStoryBoard 
+                            apiKey={apiKey} 
+                            initialTopic={selectedTopic} 
+                            initialLanguage={selectedLanguage}
+                        />
                     )}
-                    {activeTab === 'social' && <SocialPostGenerator initialTopic={selectedTopic} initialLanguage={selectedLanguage} />}
+
+                    {activeTab === 'create' && <ShortsCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
+                    {activeTab === 'long' && <LongVideoCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
+                    {activeTab === 'podcast' && <PodcastCreator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
+                    
+                    {activeTab === 'news' && (
+                        <TrendingNews 
+                            news={newsItems} setNews={setNewsItems} 
+                            loading={newsLoading} setLoading={setNewsLoading} 
+                            region={newsRegion} setRegion={setNewsRegion}
+                            onSelectTopic={handleNewsTopicSelect} apiKey={apiKey}
+                        />
+                    )}
+                    {activeTab === 'social' && <SocialPostGenerator initialTopic={selectedTopic} initialLanguage={selectedLanguage} apiKey={apiKey} />}
                     {activeTab === 'youtube' && <YoutubeManager />}
                 </div>
             </div>
           </main>
         </div>
+
+        {/* Modal Key (เหมือนเดิม) */}
+        {showKeyModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-md relative">
+                    <button onClick={() => setShowKeyModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white transition">✕</button>
+                    <h3 className="text-2xl font-black text-white uppercase mb-2 text-center">Enter Gemini API Key</h3>
+                    <input 
+                        type="password" placeholder="Paste AIza..." 
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white mb-4 outline-none"
+                        defaultValue={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)} 
+                    />
+                    <button onClick={() => handleSetApiKey(apiKey)} className="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold uppercase tracking-widest transition-all">Save & Unlock</button>
+                </div>
+            </div>
+        )}
       </AutomationProvider>
     </AppContext.Provider>
   );

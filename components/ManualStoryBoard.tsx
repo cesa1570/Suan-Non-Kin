@@ -1,26 +1,51 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Scene, GeneratorMode } from '../types';
+import { Scene } from '../types';
 import { 
-  ArrowLeft, Save, Download, Plus, Wand2, 
-  LayoutTemplate, AlertCircle, CheckCircle2 
+  Download, Plus, LayoutTemplate, CheckCircle2 
 } from 'lucide-react';
-import SceneManager from './SceneManager'; // Reuse ตัวที่เราเพิ่งแก้จนเทพ
+import SceneManager from './SceneManager';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
-import { generateVoiceover } from '../services/geminiService'; // เรียกใช้ TTS
+import { generateVoiceover } from '../services/geminiService'; 
 
+// ✅ Interface เหมือน Shorts/Long Video
 interface ManualStoryBoardProps {
-  onBack: () => void;
-  apiKey: string; // ต้องใช้ Key สำหรับ TTS
+  initialTopic?: string;
+  initialLanguage?: string;
+  apiKey: string;
 }
 
-const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) => {
-  // 1. State เริ่มต้นแบบว่างเปล่า (Blank Project)
+// --- Helper: Decode Audio (เหมือนเดิม) ---
+async function decodeAudioDataHelper(base64Data: string, ctx: AudioContext): Promise<AudioBuffer> {
+  const cleanBase64 = base64Data.replace(/[\s\r\n]+/g, '');
+  const binaryString = atob(cleanBase64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  let safeBuffer = bytes.buffer;
+  if (bytes.byteLength % 2 !== 0) {
+      const evenLength = bytes.byteLength - (bytes.byteLength % 2);
+      safeBuffer = bytes.buffer.slice(0, evenLength);
+  }
+  const dataInt16 = new Int16Array(safeBuffer);
+  const frameCount = dataInt16.length;
+  const buffer = ctx.createBuffer(1, frameCount, 24000); 
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < frameCount; i++) {
+    channelData[i] = dataInt16[i] / 32768.0;
+  }
+  return buffer;
+}
+
+const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, initialLanguage, apiKey }) => {
+  // เริ่มต้น State (ถ้ามี initialTopic ก็เอามาใส่เล่นๆ ได้ แต่ Manual คือเริ่มใหม่หมด)
   const [scenes, setScenes] = useState<Scene[]>([
     {
       id: Date.now(),
-      voiceover: "ยินดีต้อนรับสู่โปรเจกต์ใหม่... พิมพ์ข้อความของคุณที่นี่",
-      visual_prompt: "",
-      status: 'completed', // Manual ถือว่าพร้อมใช้งานเลย
+      voiceover: initialTopic ? `เริ่มต้นโปรเจกต์: ${initialTopic}` : "พิมพ์ข้อความที่นี่...",
+      visual_prompt: "Abstract background",
+      status: 'completed',
       assetStage: 'audio',
       duration_est: 5,
     }
@@ -33,7 +58,6 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) =
   const playerRef = useRef<VideoPlayerRef>(null);
 
   // --- Actions ---
-
   const handleUpdateScene = useCallback((id: number, updates: Partial<Scene>) => {
     setScenes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
   }, []);
@@ -50,7 +74,7 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) =
   };
 
   const handleDeleteScene = (id: number) => {
-    if (scenes.length <= 1) return; // เหลือไว้อย่างน้อย 1
+    if (scenes.length <= 1) return alert("Must have at least one scene.");
     setScenes(prev => prev.filter(s => s.id !== id));
   };
 
@@ -59,7 +83,6 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) =
     if (idx === -1) return;
     const newScenes = [...scenes];
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    
     if (swapIdx >= 0 && swapIdx < newScenes.length) {
       [newScenes[idx], newScenes[swapIdx]] = [newScenes[swapIdx], newScenes[idx]];
       setScenes(newScenes);
@@ -74,157 +97,101 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) =
   };
 
   const handleDuplicate = (scene: Scene) => {
-    const cloned: Scene = {
-      ...scene,
-      id: Date.now(), // New ID
-    };
-    // Insert after current
+    const cloned: Scene = { ...scene, id: Date.now(), status: 'completed' };
     const idx = scenes.findIndex(s => s.id === scene.id);
     const newScenes = [...scenes];
     newScenes.splice(idx + 1, 0, cloned);
     setScenes(newScenes);
   };
 
-  // --- AI Helper: Text-to-Speech ---
   const handleGenerateAudio = async (scene: Scene) => {
-    if (!scene.voiceover) return alert("Please type some text first.");
-    
-    handleUpdateScene(scene.id, { status: 'generating', assetStage: 'audio', processingProgress: 10 });
-    
+    if (!scene.voiceover) return alert("Please type text.");
+    if (!apiKey) return alert("Please set API Key first.");
+    handleUpdateScene(scene.id, { status: 'generating', assetStage: 'audio', processingProgress: 20 });
     try {
-      // เรียกใช้ Service เดิมที่มีอยู่
-      const base64Audio = await generateVoiceover(apiKey, scene.voiceover, 'th-TH-Standard-A'); // Default Thai Voice
-      
-      // Decode เพื่อเล่นใน Player
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      // หมายเหตุ: ต้องมีฟังก์ชัน decodeAudioData ที่เราคุยกันก่อนหน้า
-      // ถ้ายังไม่ได้ Import ให้ใช้โค้ด Decode ชุดนั้นครับ
-      // ในที่นี้สมมติว่าเก็บ base64 ไว้ก่อน แล้ว Player จะไป Decode เองถ้าเราแก้ Player ให้รับ base64 ได้
-      // หรือแปลงเป็น AudioBuffer ตรงนี้เลยก็ได้
-      
-      // *เพื่อให้ง่าย* ผมจะเก็บ base64 ไว้ แล้วให้ VideoPlayer จัดการ (หรือ SceneManager จัดการ preview)
+      const base64Audio = await generateVoiceover(apiKey, scene.voiceover, 'th-TH-Standard-A');
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const audioBuffer = await decodeAudioDataHelper(base64Audio, ctx);
-
       handleUpdateScene(scene.id, { 
-        audioBase64: base64Audio, 
-        audioBuffer: audioBuffer,
-        status: 'completed',
-        processingProgress: 100
+        audioBase64: base64Audio, audioBuffer: audioBuffer, status: 'completed', processingProgress: 100, duration_est: audioBuffer.duration 
       });
-      
     } catch (error) {
-      console.error(error);
-      handleUpdateScene(scene.id, { status: 'failed', statusDetail: 'TTS Failed' });
-      alert("TTS Failed. Please check API Key.");
+      handleUpdateScene(scene.id, { status: 'failed' });
+      alert("TTS Failed.");
     }
   };
 
-  // --- Export ---
   const handleExportVideo = async () => {
-    if (!playerRef.current) return;
+    if (!playerRef.current || scenes.length === 0) return;
     setIsRendering(true);
-    setExportUrl(null);
-    
     try {
-      const { blob } = await playerRef.current.renderVideo((pct, stage) => {
-        setProgress(pct);
-      }, { resolution: '1080p', bitrate: 25000000 });
-      
-      const url = URL.createObjectURL(blob);
-      setExportUrl(url);
+      const { blob } = await playerRef.current.renderVideo((pct) => setProgress(pct), { resolution: '1080p', bitrate: 25000000 });
+      setExportUrl(URL.createObjectURL(blob));
     } catch (err) {
-      alert("Render Failed");
+      alert("Render Failed.");
     } finally {
       setIsRendering(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-black text-white overflow-hidden">
+    // 🔥 ปรับ Layout ให้เข้ากับ Container หลัก (ไม่ต้อง h-screen)
+    <div className="flex flex-col h-[85vh] bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* 1. Top Bar */}
-      <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-6 shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white">
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex flex-col">
-             <h1 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
-               <LayoutTemplate size={20} className="text-indigo-500" /> 
-               Manual Studio
-             </h1>
-             <span className="text-[9px] text-slate-500 font-bold">Custom Production Pipeline</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-           {exportUrl ? (
-             <a href={exportUrl} download="manual-story.mp4" className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-lg animate-in fade-in zoom-in">
-               <CheckCircle2 size={16} /> Download Video
-             </a>
-           ) : (
-             <button 
-                onClick={handleExportVideo} 
-                disabled={isRendering}
-                className={`flex items-center gap-2 px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${isRendering ? 'bg-slate-800 text-slate-500 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/50'}`}
-             >
-               {isRendering ? `Rendering ${progress}%` : <> <Download size={16} /> Export Video </>}
-             </button>
-           )}
-        </div>
-      </header>
-
-      {/* 2. Main Workspace (Split View) */}
+      {/* Workspace Split */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left: Preview Monitor */}
-        <div className="w-[400px] xl:w-[500px] bg-black border-r border-slate-800 flex flex-col shrink-0">
-           <div className="flex-1 p-6 flex flex-col justify-center relative">
+        {/* Left: Preview */}
+        <div className="w-[45%] bg-black border-r border-slate-800 flex flex-col relative">
+           <div className="flex-1 p-6 flex flex-col justify-center bg-slate-950/50">
               <div className="aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl relative">
-                 <VideoPlayer 
-                    ref={playerRef}
-                    scenes={scenes}
-                    isReady={true}
-                    aspectRatio="16:9" // หรือทำ Toggle 9:16 ได้
-                    hideSubtitles={false}
-                 />
+                 <VideoPlayer ref={playerRef} scenes={scenes} isReady={true} aspectRatio="16:9" hideSubtitles={false} />
               </div>
-              <p className="text-center text-[10px] text-slate-600 font-mono mt-4 uppercase tracking-widest">
-                 Live Preview Monitor • 1080p
-              </p>
+              <div className="mt-6 flex justify-between items-center px-2">
+                 <div className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">
+                    Duration: {scenes.reduce((acc, s) => acc + (s.duration_est || 5), 0).toFixed(1)}s
+                 </div>
+                 {/* Export Button moved here */}
+                 {exportUrl ? (
+                   <a href={exportUrl} download="manual.mp4" className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white shadow-lg transition-all">
+                     <CheckCircle2 size={14} /> Download
+                   </a>
+                 ) : (
+                   <button onClick={handleExportVideo} disabled={isRendering || scenes.length === 0} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-900/50 transition-all disabled:opacity-50">
+                     {isRendering ? `Rendering ${progress}%` : <><Download size={14} /> Export</>}
+                   </button>
+                 )}
+              </div>
            </div>
         </div>
 
-        {/* Right: Timeline / Scene Editor */}
-        <div className="flex-1 bg-slate-950 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 p-8">
-           <div className="max-w-4xl mx-auto space-y-8">
-              
-              <div className="flex items-center justify-between">
-                 <h2 className="text-xl font-black text-slate-200 uppercase tracking-tight">Timeline Sequences</h2>
-                 <button onClick={handleAddScene} className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">
+        {/* Right: Timeline Editor */}
+        <div className="flex-1 bg-slate-900 overflow-y-auto custom-scrollbar p-6">
+           <div className="space-y-6 pb-20">
+              <div className="flex items-center justify-between sticky top-0 bg-slate-900/95 backdrop-blur-sm z-10 py-2 border-b border-slate-800">
+                 <h2 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+                    <LayoutTemplate size={18} className="text-indigo-500" /> Timeline
+                 </h2>
+                 <button onClick={handleAddScene} className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all border border-slate-700">
                     <Plus size={14} /> Add Scene
                  </button>
               </div>
 
-              {/* ใช้ SceneManager ตัวเทพที่เราทำไว้ */}
               <SceneManager 
                  scenes={scenes}
                  isProcessingAll={false}
                  onUpdateScene={handleUpdateScene}
-                 onGenerateAudio={handleGenerateAudio} // ต่อกับฟังก์ชัน TTS
-                 onRegenerate={() => {}} // Manual mode ไม่ต้องใช้ AI Gen ภาพทั้งชุด
+                 onGenerateAudio={handleGenerateAudio}
+                 onRegenerate={() => {}} 
                  onToggleSkip={(id) => handleUpdateScene(id, { status: scenes.find(s => s.id === id)?.status === 'skipped' ? 'completed' : 'skipped' })}
                  onReorder={handleReorder}
                  onDragReorder={handleDragReorder}
                  onDelete={handleDeleteScene}
                  onDuplicateScene={handleDuplicate}
                  onAddScene={handleAddScene}
-                 // Disable AI prompts refinement features for manual mode simplicity
                  onRefinePrompt={undefined} 
                  onAutoStoryboard={undefined}
               />
-
-              <div className="h-20" /> {/* Bottom Spacer */}
            </div>
         </div>
 
@@ -232,13 +199,5 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ onBack, apiKey }) =
     </div>
   );
 };
-
-// --- Utils (ต้องใส่ไว้ในไฟล์เดียวกันหรือ import มา) ---
-// ฟังก์ชันช่วย Decode (Copy จาก audioDecoder.ts มาใช้ หรือ import)
-import { decodeAudioData } from '../utils/audioDecoder'; // สมมติว่าไฟล์นี้อยู่ path นี้
-
-async function decodeAudioDataHelper(base64: string, ctx: AudioContext) {
-    return await decodeAudioData(base64, ctx);
-}
 
 export default ManualStoryBoard;
