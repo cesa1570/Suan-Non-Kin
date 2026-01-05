@@ -54,7 +54,8 @@ const STYLE_DIRECTIVES: Record<string, string> = {
   'Anime': 'Makoto Shinkai style, vibrant cel-shaded, expressive line art, stylized sky with fluffy clouds, saturated colors, hand-drawn aesthetic, high-quality modern anime.',
   'Cyberpunk': 'Neon noir, rainy streets with neon reflections, high contrast, volumetric fog, chromatic aberration, futuristic night city, aggressive teal and orange palette.',
   'Horror': 'Chiaroscuro lighting, heavy film grain, desaturated colors, eerie atmosphere, shadow play, unsettling micro-details, low-key lighting, suspenseful cinematic mood.',
-  'Documentary': 'Naturalistic lighting, macro photography, realistic organic textures, neutral color palette, clean framing, high-fidelity details, authentic material realism.'
+  'Documentary': 'Naturalistic lighting, macro photography, realistic organic textures, neutral color palette, clean framing, high-fidelity details, authentic material realism.',
+  'Unreal': 'Rendered in Unreal Engine 5, Nanite geometry, Lumen global illumination, 8K resolution, hyper-realistic 3D graphics, ray tracing, high fidelity, detailed textures, cinematic lighting, photorealistic game asset style.'
 };
 
 const augmentPromptWithStyle = (prompt: string, style: string) => {

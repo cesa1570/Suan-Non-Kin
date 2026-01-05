@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Palette, Sparkles, X, Check, Eye, Zap, Layers, Wand2, Info, Camera, Monitor, Film } from 'lucide-react';
 
@@ -51,6 +50,15 @@ const STYLES: StyleOption[] = [
     dna: ['Natural Light', 'Macro Detail', 'True Color', 'Clean Frame'],
     image: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&q=80&w=800',
     technicalHint: 'Adds: neutral lighting, documentary style, macro lens, realistic textures'
+  },
+  // --- New Style Added Here ---
+  {
+   id: 'Unreal',
+   name: 'Unreal Engine 5',
+   description: 'Hyper-realistic 3D rendering with advanced global illumination and ray tracing.',
+   dna: ['Lumen', 'Nanite', 'Ray Tracing', '8K Render'],
+   image: 'https://images.unsplash.com/photo-1614726365723-49cfae9680a6?auto=format&fit=crop&q=80&w=800', 
+   technicalHint: 'Adds: Unreal Engine 5 render, 8k resolution, lumen global illumination'
   }
 ];
 
@@ -63,7 +71,7 @@ interface ArtStyleSelectorProps {
 const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelect, onClose }) => {
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/98 backdrop-blur-2xl p-6 animate-in fade-in duration-300">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-6xl rounded-[4rem] p-12 relative shadow-3xl overflow-hidden ring-1 ring-slate-700">
+      <div className="bg-slate-900 border border-slate-800 w-full max-w-7xl rounded-[4rem] p-12 relative shadow-3xl overflow-hidden ring-1 ring-slate-700">
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
         
@@ -83,11 +91,13 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
           </div>
           <div className="px-6 py-2 bg-slate-800 rounded-full flex items-center gap-3 border border-slate-700">
              <Layers size={14} className="text-purple-400" />
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">5 Multi-Spectral Style Kernels</span>
+             {/* Updated text to reflect new count */}
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">6 Multi-Spectral Style Kernels</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 max-h-[60vh] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-800">
+        {/* Updated grid to grid-cols-3 for better layout with 6 items, or use grid-cols-6 if screen permits */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 max-h-[60vh] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-800">
           {STYLES.map((style) => (
             <button
               key={style.id}
@@ -101,9 +111,9 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
               {/* Visual Preview Container */}
               <div className="h-48 w-full relative overflow-hidden transition-transform duration-700">
                  <img 
-                    src={style.image} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                    alt={style.name} 
+                   src={style.image} 
+                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                   alt={style.name} 
                  />
                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
                  
@@ -129,7 +139,7 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
                     {style.name}
                   </h4>
                   <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                     <Camera size={10} /> Lens Core Active
+                      <Camera size={10} /> Lens Core Active
                   </div>
                 </div>
                 
@@ -139,13 +149,13 @@ const ArtStyleSelector: React.FC<ArtStyleSelectorProps> = ({ selectedId, onSelec
 
                 <div className="mt-auto space-y-4">
                   <div className="p-3 bg-slate-900 rounded-2xl border border-slate-800 group-hover:border-slate-700 transition-colors">
-                     <div className="flex items-center gap-2 mb-1.5">
-                        <Monitor size={10} className="text-blue-400" />
-                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Engine Parameters</span>
-                     </div>
-                     <p className="text-[9px] text-slate-400 leading-tight italic font-mono uppercase tracking-tighter">
-                        {style.technicalHint}
-                     </p>
+                      <div className="flex items-center gap-2 mb-1.5">
+                         <Monitor size={10} className="text-blue-400" />
+                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Engine Parameters</span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 leading-tight italic font-mono uppercase tracking-tighter">
+                         {style.technicalHint}
+                      </p>
                   </div>
                   
                   <div className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
