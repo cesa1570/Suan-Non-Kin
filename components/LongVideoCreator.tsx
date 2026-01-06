@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ProjectState, GeneratorMode, Scene, SubtitleStyle, ScriptData } from '../types';
 import { generateLongVideoScript, generateVideoForScene, generateImageForScene, generateVoiceover, ERR_INVALID_KEY, summarizeScript, refineVisualPrompt, generateStoryboards } from '../services/geminiService';
 import { decodeAudioData } from '../utils/audioUtils';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 // Fixed: Imported useAutomation from context to provide addLog functionality
 import { useAutomation } from '../contexts/AutomationContext';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';

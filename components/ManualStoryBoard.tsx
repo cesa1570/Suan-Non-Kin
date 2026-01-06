@@ -7,8 +7,8 @@ import {
 import SceneManager from './SceneManager';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import { generateVoiceover } from '../services/geminiService'; 
-
-import ArtStyleSelector, { StyleOption, STYLES } from './ArtStyleSelector'; 
+import { useApp } from '../contexts/AppContext';
+import ArtStyleSelector, { STYLES } from './ArtStyleSelector';
 
 const mockGenerateImage = async (prompt: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -57,6 +57,7 @@ async function decodeAudioDataHelper(base64Data: string, ctx: AudioContext): Pro
 }
 
 const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, apiKey }) => {
+  const { openKeySelection, resetKeyStatus } = useApp();
   
   // State Settings
   const [videoSettings, setVideoSettings] = useState<VideoSettings>({
@@ -440,7 +441,6 @@ const ManualStoryBoard: React.FC<ManualStoryBoardProps> = ({ initialTopic, apiKe
                  onDragReorder={handleDragReorder}
                  onDelete={handleDeleteScene}
                  onAddScene={handleAddScene}
-                 onDuplicateScene={handleDuplicate}
               />
               <div className="h-20"></div>
            </div>

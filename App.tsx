@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Video, Zap, Newspaper, Clapperboard, 
   Youtube, Grid, FileEdit, Key 
@@ -16,22 +16,7 @@ import AutomationEngine from './components/AutomationEngine';
 
 import { NewsItem } from './types';
 import { AutomationProvider } from './contexts/AutomationContext';
-
-interface AppContextType {
-  apiKey: string;
-  setApiKey: (key: string) => void;
-  openKeySelection: () => void;
-  resetKeyStatus: () => void;
-  hasSelectedKey: boolean;
-}
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
-  return context;
-};
+import { AppContext, AppContextType } from './contexts/AppContext';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'hub' | 'dashboard' | 'create' | 'long' | 'news' | 'youtube' | 'manual'>('hub');
@@ -39,7 +24,7 @@ const App: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<'Thai' | 'English'>('Thai');
   
-  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('user_gemini_key') || '');
+  const [apiKey, setApiKey] = useState<string>(process.env.API_KEY || '');
   const [showKeyModal, setShowKeyModal] = useState(false);
   
   const [ytConnected, setYtConnected] = useState(!!localStorage.getItem('yt_access_token'));
@@ -74,15 +59,11 @@ const App: React.FC = () => {
 
   const handleSetApiKey = (key: string) => {
     setApiKey(key);
-    localStorage.setItem('user_gemini_key', key);
     setShowKeyModal(false);
   };
 
   const openKeySelection = () => setShowKeyModal(true);
-  const resetKeyStatus = () => {
-    setApiKey('');
-    localStorage.removeItem('user_gemini_key');
-  };
+  const resetKeyStatus = () => setApiKey('');
 
   const handleNewsTopicSelect = (topic: string, type: 'video' | 'social' | 'podcast', region: 'global' | 'thailand') => {
     setSelectedTopic(topic);
@@ -107,14 +88,16 @@ const App: React.FC = () => {
     </button>
   );
 
+  const contextValue: AppContextType = {
+    apiKey,
+    setApiKey: handleSetApiKey,
+    openKeySelection,
+    resetKeyStatus,
+    hasSelectedKey: !!apiKey
+  };
+
   return (
-    <AppContext.Provider value={{ 
-      apiKey, 
-      setApiKey: handleSetApiKey,
-      openKeySelection,
-      resetKeyStatus,
-      hasSelectedKey: !!apiKey
-    }}>
+    <AppContext.Provider value={contextValue}>
       <AutomationProvider apiKey={apiKey}>
         <AutomationEngine apiKey={apiKey} />
         
@@ -173,7 +156,6 @@ const App: React.FC = () => {
                         <ManualStoryBoard 
                             apiKey={apiKey} 
                             initialTopic={selectedTopic} 
-                            initialLanguage={selectedLanguage}
                         />
                     )}
 

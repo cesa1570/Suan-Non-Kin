@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { ProjectState, GeneratorMode, Scene, SubtitleStyle } from '../types';
 import { generateScript, generateImageForScene, generateVoiceover, generateVideoForScene, ERR_INVALID_KEY } from '../services/geminiService';
@@ -7,7 +6,7 @@ import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import SceneManager from './SceneManager';
 import MetadataManager from './MetadataManager';
 import YoutubeUploadModal from './YoutubeUploadModal';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { saveProject, listProjects, ProjectData } from '../services/projectService';
 import {
   Wand2, Loader2, Save, History, X, Sparkles, Youtube, 
@@ -94,7 +93,7 @@ const ProjectBuilder: React.FC<{ initialTopic?: string, initialLanguage?: 'Thai'
 
       {/* 2. Control Console */}
       <div className="flex-1 flex flex-col gap-8">
-        <div className="bg-slate-900 border border-slate-800 p-10 rounded-[3rem] shadow-2xl relative overflow-hidden ring-1 ring-slate-800">
+        <div className="bg-slate-900 border border-slate-800 p-10 rounded-[3rem] shadow-2xl relative overflow-hidden ring-1 ring-slate-800/50">
            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none"><Zap size={140} fill="currentColor"/></div>
            
            <div className="flex items-center gap-4 mb-10">

@@ -8,7 +8,7 @@ import MetadataManager from './MetadataManager';
 import SubtitleEditor from './SubtitleEditor';
 import YoutubeUploadModal from './YoutubeUploadModal';
 import ArtStyleSelector, { StyleOption } from './ArtStyleSelector';
-import { useApp } from '../App';
+import { useApp } from '../contexts/AppContext';
 import { saveProject, listProjects, ProjectData, getProject, addToQueue } from '../services/projectService';
 import {
   Wand2, Loader2, Save, History, X, Sparkles, Youtube, 
@@ -35,7 +35,6 @@ interface ShortsCreatorProps {
 }
 
 const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLanguage = 'Thai', apiKey }) => {
-  // ... (Code ภายในเหมือนเดิมทั้งหมด) ...
   const { openKeySelection, resetKeyStatus, hasSelectedKey } = useApp();
   const [state, setState] = useState<ProjectState>({ status: 'idle', topic: initialTopic || '', script: null, currentStep: '' });
   const [mode, setMode] = useState<GeneratorMode>(GeneratorMode.FACTS);
@@ -96,7 +95,7 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
       setState(prev => ({ ...prev, script: scriptData, status: 'idle' }));
       setSaveStatus('draft');
     } catch (error: any) { 
-      if (error.code === ERR_INVALID_KEY) { resetKeyStatus(); await openKeySelection(); } 
+      if (error.code === ERR_INVALID_KEY) { resetKeyStatus(); openKeySelection(); } 
       setState(prev => ({ ...prev, status: 'error', error: error.message })); 
     }
   };

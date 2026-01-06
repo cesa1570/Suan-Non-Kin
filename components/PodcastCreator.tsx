@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ProjectState, GeneratorMode, Scene } from '../types';
 import { generateScript, generatePodcastAudio, generateVideoForScene, generateImageForScene, ERR_INVALID_KEY, summarizeScript } from '../services/geminiService';
 import { decodeAudioData } from '../utils/audioUtils';
-import { useApp } from '../App';
+// Fix: Correct the import source for useApp from the context file instead of App component
+import { useApp } from '../contexts/AppContext';
 import VideoPlayer, { VideoPlayerRef } from './VideoPlayer';
 import ArtStyleSelector from './ArtStyleSelector';
 import { saveProject, listProjects, deleteProject, ProjectData, exportProjectToJson, addToQueue } from '../services/projectService';
@@ -55,7 +56,7 @@ const PodcastCreator: React.FC<PodcastCreatorProps> = ({ initialTopic, initialLa
   const [savedProjects, setSavedProjects] = useState<ProjectData[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'draft' | 'saving' | 'saved'>('draft');
+  const [saveStatus, setSaveStatus] = useState<'draft' | 'saving' | 'saved' | 'error'>('draft');
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const lastSaveRef = useRef<number>(Date.now());
   const [bgmUrl, setBgmUrl] = useState<string | undefined>(undefined);
@@ -355,7 +356,7 @@ const PodcastCreator: React.FC<PodcastCreatorProps> = ({ initialTopic, initialLa
                     <div className="flex items-center justify-between mb-4">
                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Dialogue Segment #{idx + 1}</span>
                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${scene.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : scene.status === 'generating' ? 'bg-orange-500/10 text-orange-500 animate-pulse' : 'bg-slate-800 text-slate-600'}`}>
+                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${scene.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : scene.status === 'generating' ? 'bg-orange-500/10 text-orange-500 animate-pulse' : 'bg-slate-800 text-slate-600'}`}>
                              {scene.status}
                           </span>
                           <button onClick={() => processScene(scene, true, true)} className="p-2 text-slate-500 hover:text-white transition active:rotate-180 duration-500"><RefreshCw size={14}/></button>
