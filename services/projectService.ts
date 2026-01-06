@@ -50,7 +50,7 @@ const sanitizeForIDB = (obj: any): any => {
 
 export interface ProjectData {
   id: string;
-  type: 'shorts' | 'long' | 'podcast';
+  type: 'shorts' | 'long' | 'podcast' | 'manual';
   title: string;
   topic: string;
   lastUpdated: number;
@@ -61,7 +61,7 @@ export interface ProjectData {
 export interface YoutubeQueueItem {
   id: string;
   projectId: string;
-  projectType: 'shorts' | 'long' | 'podcast';
+  projectType: 'shorts' | 'long' | 'podcast' | 'manual';
   videoBlob?: Blob; 
   metadata: {
     title: string;

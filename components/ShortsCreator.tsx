@@ -9,13 +9,13 @@ import SubtitleEditor from './SubtitleEditor';
 import YoutubeUploadModal from './YoutubeUploadModal';
 import ArtStyleSelector, { StyleOption } from './ArtStyleSelector';
 import { useApp } from '../contexts/AppContext';
-import { saveProject, listProjects, ProjectData, getProject, addToQueue } from '../services/projectService';
+import { saveProject, listProjects, ProjectData, getProject, addToQueue, validateYoutubeMetadata } from '../services/projectService';
 import {
   Wand2, Loader2, Save, History, X, Sparkles, Youtube, 
   Smartphone, Bot, CheckCircle2, Zap, Download, Type, Move, Palette, Layers, BarChart3, Clock, Eye, EyeOff, Music, PlusCircle, Trash2, ChevronRight, Info,
   Mic, VolumeX, Volume2, Play, Rocket, Upload, FileAudio, ToggleLeft, ToggleRight,
   Anchor, BookOpen, Lightbulb, TrendingUp, Megaphone, Send, ListPlus, ShieldCheck,
-  Paintbrush, Activity, Check, BrainCircuit, Camera
+  Paintbrush, Activity, Check, BrainCircuit, Camera, Calendar
 } from 'lucide-react';
 
 const SaveStatusIndicator = ({ status }: { status: 'draft' | 'saving' | 'saved' | 'error' }) => {
@@ -27,7 +27,6 @@ const SaveStatusIndicator = ({ status }: { status: 'draft' | 'saving' | 'saved' 
   }
 };
 
-// [แก้ไข] เพิ่ม apiKey: string เข้าไปใน Interface ของ Props
 interface ShortsCreatorProps {
   initialTopic?: string;
   initialLanguage?: 'Thai' | 'English';
@@ -56,8 +55,10 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
   const [isProcessingAll, setIsProcessingAll] = useState(false);
   const [voiceSpeed, setVoiceSpeed] = useState(1.1);
   const [isQueuing, setIsQueuing] = useState(false);
+  
+  // Queue Specific States
+  const [scheduledTime, setScheduledTime] = useState<string>('');
 
-  // Shared resources
   const audioContextRef = useRef<AudioContext | null>(null);
   const playerRef = useRef<VideoPlayerRef>(null);
 
@@ -68,7 +69,6 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
     return audioContextRef.current;
   };
 
-  // BGM State
   const [bgmUrl, setBgmUrl] = useState<string | undefined>(undefined);
   const [bgmFile, setBgmFile] = useState<Blob | null>(null);
   const [bgmName, setBgmName] = useState<string | null>(null);
@@ -85,7 +85,7 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
     }
   }, [bgmFile]);
 
-  useEffect(() => { setSaveStatus('draft'); }, [selectedVoice, selectedStyle, subtitleStyle, bgmVolume, voiceSpeed, hideSubtitles, selectedTextModel]);
+  useEffect(() => { setSaveStatus('draft'); }, [selectedVoice, selectedStyle, subtitleStyle, bgmVolume, voiceSpeed, hideSubtitles, selectedTextModel, state.topic, state.script]);
 
   const handleGenerateScript = async () => {
     if (!state.topic) return;
@@ -100,25 +100,26 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
     }
   };
 
+  // [Fix] Added handleRefinePrompt to use AI to enhance visual prompts
   const handleRefinePrompt = async (scene: Scene) => {
     try {
+      updateScene(scene.id, { statusDetail: "AI Refining..." });
       const refined = await refineVisualPrompt(state.topic, selectedStyle, scene.voiceover);
-      updateScene(scene.id, { visual_prompt: refined });
-    } catch (err) { console.error(err); }
+      updateScene(scene.id, { visual_prompt: refined, statusDetail: "Style Optimized" });
+    } catch (err) {
+      console.error("Visual refinement failed", err);
+    }
   };
 
   const processScene = async (scene: Scene) => {
     if (scene.status === 'completed') return;
-
     updateScene(scene.id, { status: 'generating', processingProgress: 5, statusDetail: "Connecting..." });
     try {
       const audioBase64 = await generateVoiceover(scene.voiceover, selectedVoice);
       const audioCtx = getAudioContext();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
-      
       const audioBuffer = await decodeAudioData(audioBase64, audioCtx);
       updateScene(scene.id, { processingProgress: 30, audioBase64, audioBuffer, statusDetail: "Rendering Visuals..." });
-      
       const isVideo = selectedVisualModel.startsWith('veo');
       let result: string;
       if (isVideo) {
@@ -128,10 +129,8 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
       } else {
         result = await generateImageForScene(scene.visual_prompt, selectedVisualModel, aspectRatio, selectedStyle);
       }
-
       updateScene(scene.id, { status: 'completed', processingProgress: 100, statusDetail: "Ready", imageUrl: !isVideo ? result : undefined, videoUrl: isVideo ? result : undefined });
     } catch (err: any) { 
-      console.error(`Scene ${scene.id} failed:`, err);
       updateScene(scene.id, { status: 'failed', error: err.message, statusDetail: "Sync Error" }); 
       throw err; 
     }
@@ -217,9 +216,45 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
     try {
       const { blob } = await playerRef.current.renderVideo((p, stage) => { setExportProgress(p); setExportStage(stage); });
       setCurrentVideoBlob(blob); const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `viral-short-${Date.now()}.webm`;
+      const a = document.createElement('a'); a.href = url; a.download = `viral-short-${Date.now()}.mp4`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
     } catch (err: any) { alert("Render Failed: " + err.message); } finally { setIsExporting(false); }
+  };
+
+  const handleQueueToDashboard = async () => {
+    if (!state.script) return;
+    setIsQueuing(true);
+    try {
+      await handleSaveProject();
+      const tagArray = state.script.hashtags || [];
+      const validation = validateYoutubeMetadata(state.script.seoTitle || state.script.title, state.script.longDescription, tagArray);
+      
+      const publishAtISO = scheduledTime ? new Date(scheduledTime).toISOString() : undefined;
+
+      await addToQueue({
+        id: `q-shorts-${Date.now()}`,
+        projectId: state.id || `shorts-${Date.now()}`,
+        projectType: 'shorts',
+        videoBlob: currentVideoBlob || undefined,
+        metadata: {
+          title: (state.script.seoTitle || state.script.title).substring(0, 100),
+          description: state.script.longDescription,
+          tags: tagArray,
+          privacy_status: scheduledTime ? 'private' : 'public',
+          publish_at: publishAtISO
+        },
+        status: 'waiting',
+        progress: 0,
+        system_note: `Scheduled via Shorts Factory. ${publishAtISO ? 'Launch on: ' + new Date(publishAtISO).toLocaleString() : 'ASAP'}`,
+        addedAt: Date.now(),
+        queued_at: new Date().toISOString()
+      });
+      alert("Short Node Added to Pipeline! คุณสามารถตรวจสอบสถานะการอัปโหลดได้ที่หน้า YouTube Studio");
+    } catch (e) {
+      alert("Failed to queue project.");
+    } finally {
+      setIsQueuing(false);
+    }
   };
 
   const completedScenes = (state.script?.scenes || []).filter(s => s.status === 'completed');
@@ -253,7 +288,7 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
               <Download size={20}/> Final Render (MP4)
             </button>
             <button onClick={() => setShowYoutubeModal(true)} disabled={!currentVideoBlob} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 transition-all">
-              <Youtube size={20}/> Publish to Shorts
+              <Youtube size={20}/> Instant Publish
             </button>
          </div>
       </div>
@@ -275,31 +310,28 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800">
                     <label className="text-[9px] font-black text-slate-600 uppercase block mb-2 flex items-center gap-1.5"><BrainCircuit size={10} className="text-purple-400"/> Intelligence</label>
                     <select value={selectedTextModel} onChange={(e) => setSelectedTextModel(e.target.value)} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer">
-                      <option value="gemini-3-flash-preview">Gemini 3 Flash (Fast)</option>
-                      <option value="gemini-3-pro-preview">Gemini 3 Pro (Smart)</option>
+                      <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+                      <option value="gemini-3-pro-preview">Gemini 3 Pro</option>
                     </select>
                  </div>
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800">
                     <label className="text-[9px] font-black text-slate-600 uppercase block mb-2 flex items-center gap-1.5"><Palette size={10} className="text-pink-400" /> Art Style</label>
                     <button onClick={() => setShowStyleSelector(true)} className="w-full text-left text-white font-bold text-xs truncate flex items-center justify-between"><span>{selectedStyle}</span><ChevronRight size={14}/></button>
-                    <div className="mt-2 flex items-center gap-1.5 px-2 py-0.5 bg-slate-900 rounded-md border border-slate-800">
-                       <Camera size={8} className="text-slate-600"/>
-                       <span className="text-[7px] font-black text-slate-500 uppercase tracking-tighter">Style DNA Active</span>
-                    </div>
                  </div>
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800"><label className="text-[9px] font-black text-slate-600 uppercase block mb-2">Engine</label>
                  <select value={selectedVisualModel} onChange={(e) => setSelectedVisualModel(e.target.value)} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer"><option value="gemini-2.5-flash-image">Static Core</option><option value="veo-3.1-fast-generate-preview">Motion Core</option></select></div>
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800"><label className="text-[9px] font-black text-slate-600 uppercase block mb-2">Voice</label>
-                 <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer"><option value="Kore">Kore (Power)</option><option value="Charon">Charon (Deep)</option><option value="Zephyr">Zephyr (Bright)</option></select></div>
+                 <select value={selectedVoice} onChange={(e) => setSelectedVoice(e.target.value)} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer"><option value="Kore">Kore</option><option value="Charon">Charon</option><option value="Zephyr">Zephyr</option></select></div>
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800"><label className="text-[9px] font-black text-slate-600 uppercase block mb-2">Tempo</label>
-                 <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer"><option value="1.0">Normal</option><option value="1.15">Viral (Fast)</option><option value="1.3">Turbo</option></select></div>
+                 <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))} className="w-full bg-transparent text-white font-bold text-xs outline-none cursor-pointer"><option value="1.0">Normal</option><option value="1.15">Viral</option><option value="1.3">Turbo</option></select></div>
               </div>
            </div>
         </div>
+
         {state.script && (
           <div className="bg-slate-900 border border-slate-800 rounded-[3.5rem] overflow-hidden shadow-2xl flex flex-col">
              <div className="flex border-b border-slate-800 p-2 gap-2">
-                {[{id:'scenes', label:' storyboard', icon:<Layers size={16}/>}, {id:'viral', label:'Viral Styling', icon:<Type size={16}/>}, {id:'seo', label:'Deployment', icon:<BarChart3 size={16}/>}].map(t => (
+                {[{id:'scenes', label:'Storyboard', icon:<Layers size={16}/>}, {id:'viral', label:'Styling', icon:<Type size={16}/>}, {id:'seo', label:'Deployment', icon:<BarChart3 size={16}/>}].map(t => (
                   <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`flex-1 py-5 rounded-2xl flex items-center justify-center gap-3 text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === t.id ? 'bg-orange-600 text-white' : 'text-slate-500 hover:bg-slate-800'}`}>{t.icon} {t.label}</button>
                 ))}
              </div>
@@ -309,25 +341,14 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
                     <div className="bg-slate-950 p-8 rounded-[3rem] border border-slate-800 flex items-center justify-between shadow-inner">
                        <div className="flex items-center gap-5">
                           <div className="w-14 h-14 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-400 border border-purple-500/20"><Rocket size={28}/></div>
-                          <div><h4 className="text-base font-black text-white uppercase tracking-widest leading-none mb-2">Parallel Core Production</h4><p className="text-[10px] text-slate-500 font-bold uppercase">{completedCount} / {totalCount} Ready</p></div>
+                          <div><h4 className="text-base font-black text-white uppercase tracking-widest leading-none mb-2">Production Core</h4><p className="text-[10px] text-slate-500 font-bold uppercase">{completedCount} / {totalCount} Ready</p></div>
                        </div>
-                       <button onClick={handleGenerateAll} disabled={isProcessingAll || (completedCount === totalCount && totalCount > 0)} className={`px-12 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-4 active:scale-95 ${isProcessingAll ? 'bg-orange-600 text-white animate-pulse' : 'bg-purple-600 text-white hover:bg-purple-500 shadow-purple-900/40'}`}>
+                       <button onClick={handleGenerateAll} disabled={isProcessingAll} className={`px-12 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-4 active:scale-95 ${isProcessingAll ? 'bg-orange-600 text-white animate-pulse' : 'bg-purple-600 text-white hover:bg-purple-500'}`}>
                          {isProcessingAll ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                         {isProcessingAll ? 'Batch Rendering...' : 'Synthesize All Scenes'}
+                         {isProcessingAll ? 'Processing...' : 'Synthesize All'}
                        </button>
                     </div>
-                    <SceneManager 
-                      scenes={state.script.scenes} 
-                      onRegenerate={processScene} 
-                      onRefinePrompt={handleRefinePrompt} 
-                      onToggleSkip={(id) => updateScene(id, { status: 'skipped' })} 
-                      onUpdateScene={updateScene} 
-                      onDragReorder={handleReorderScenes}
-                      onReorder={handleStepReorder}
-                      onDelete={handleDeleteScene}
-                      onAddScene={handleAddScene}
-                      isProcessingAll={isProcessingAll} 
-                    />
+                    <SceneManager scenes={state.script.scenes} onRegenerate={processScene} onRefinePrompt={handleRefinePrompt} onToggleSkip={(id) => updateScene(id, { status: 'skipped' })} onUpdateScene={updateScene} onDragReorder={handleReorderScenes} onReorder={handleStepReorder} onDelete={handleDeleteScene} onAddScene={handleAddScene} isProcessingAll={isProcessingAll} />
                   </div>
                 )}
                 {activeTab === 'viral' && (
@@ -339,19 +360,57 @@ const ShortsCreator: React.FC<ShortsCreatorProps> = ({ initialTopic, initialLang
                       </div>
                    </div>
                 )}
-                {activeTab === 'seo' && <MetadataManager metadata={state.script} topic={state.topic} style={selectedStyle} />}
+                {activeTab === 'seo' && (
+                  <div className="space-y-10">
+                    <MetadataManager metadata={state.script} topic={state.topic} style={selectedStyle} onUpdateMetadata={(upd) => setState(p => p.script ? {...p, script: {...p.script, ...upd}} : p)} />
+                    
+                    <div className="bg-slate-950 p-10 rounded-[4rem] border border-orange-500/20 space-y-10 shadow-3xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-5 text-orange-500 rotate-12"><Calendar size={120}/></div>
+                        <div className="flex items-center justify-between border-b border-slate-800/50 pb-8 relative z-10">
+                            <div>
+                                <h4 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                                  <Activity size={28} className="text-orange-500"/> Pipeline Deployment
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Configure schedule for autonomous upload</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                            <div className="space-y-4 p-8 bg-slate-900/50 rounded-[2.5rem] border border-slate-800">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                  <Clock size={14} className="text-blue-400" /> Set Broadcast Time (Optional)
+                                </label>
+                                <input 
+                                  type="datetime-local" 
+                                  value={scheduledTime}
+                                  onChange={(e) => setScheduledTime(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white font-kanit outline-none focus:ring-2 focus:ring-blue-500/30"
+                                  style={{ colorScheme: 'dark' }}
+                                />
+                                <p className="text-[9px] text-slate-600 italic">Leave empty to upload immediately when ready.</p>
+                            </div>
+
+                            <button 
+                              onClick={handleQueueToDashboard}
+                              disabled={isQueuing}
+                              className="flex flex-col items-center justify-center gap-4 bg-orange-600 text-white rounded-[2.5rem] hover:bg-orange-500 transition-all group active:scale-95 shadow-2xl shadow-orange-900/40 disabled:opacity-50"
+                            >
+                                {isQueuing ? <Loader2 size={32} className="animate-spin"/> : <ListPlus size={32} />}
+                                <div className="text-center">
+                                    <span className="text-sm font-black uppercase tracking-[0.2em] block">Add to Auto-Queue</span>
+                                    <span className="text-[9px] text-orange-200 font-bold uppercase mt-1 opacity-70">Send to Dashboard Pipeline</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                  </div>
+                )}
              </div>
           </div>
         )}
       </div>
       {showYoutubeModal && currentVideoBlob && state.script && (
-        <YoutubeUploadModal 
-          videoBlob={currentVideoBlob} 
-          initialTitle={state.script.seoTitle || state.script.title} 
-          initialDescription={state.script.longDescription || state.script.description || ''} 
-          initialTags={state.script.hashtags} 
-          onClose={() => setShowYoutubeModal(false)} 
-        />
+        <YoutubeUploadModal videoBlob={currentVideoBlob} initialTitle={state.script.seoTitle || state.script.title} initialDescription={state.script.longDescription || state.script.description || ''} initialTags={state.script.hashtags} onClose={() => setShowYoutubeModal(false)} />
       )}
     </div>
   );

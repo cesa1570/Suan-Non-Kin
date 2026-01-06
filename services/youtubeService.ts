@@ -5,7 +5,6 @@
 
 /**
  * Uploads a video Blob to YouTube using the Data API v3 (Multipart Upload).
- * Requires a valid OAuth 2.0 Access Token with 'https://www.googleapis.com/auth/youtube.upload' scope.
  */
 export const uploadVideoToYouTube = async (
   videoBlob: Blob,
@@ -14,21 +13,16 @@ export const uploadVideoToYouTube = async (
   accessToken: string,
   privacy: 'public' | 'private' | 'unlisted' = 'private',
   tags: string[] = [],
-  publishAt?: string // [เพิ่ม] พารามิเตอร์สำหรับรับเวลาตั้งโพสต์ (ISO 8601 format)
+  publishAt?: string
 ): Promise<any> => {
-  
-  // [สำคัญ] หากมีการระบุเวลา (Schedule) ต้องตั้งสถานะเป็น 'private' เท่านั้น
-  // YouTube จะเปลี่ยนเป็น public ให้อัตโนมัติตามเวลาที่กำหนด
   const finalPrivacy = publishAt ? 'private' : privacy;
 
-  // 1. Prepare Metadata for the video resource
-  // ใช้ any เพื่อให้ใส่ publishAt ได้ง่ายขึ้น (หรือจะแก้ Interface ก็ได้)
   const metadata: any = {
     snippet: {
-      title: title.substring(0, 100), // YouTube title limit is 100 chars
-      description: description + "\n\n#Shorts #AI #AutoShorts", // Appending default tags
+      title: title.substring(0, 100),
+      description: description + "\n\n#Shorts #AI #AutoShorts",
       tags: [...new Set(["AutoShorts", "AI", "Shorts", "Generated", ...tags])].slice(0, 50),
-      categoryId: "22" // Category ID 22 is 'People & Blogs'
+      categoryId: "22"
     },
     status: {
       privacyStatus: finalPrivacy,
@@ -37,24 +31,14 @@ export const uploadVideoToYouTube = async (
     }
   };
 
-  // [เพิ่ม] ใส่ค่า publishAt ลงไปใน metadata ถ้ามีส่งมา
   if (publishAt) {
     metadata.status.publishAt = publishAt;
   }
 
-  // 2. Create multipart/related request body
   const formData = new FormData();
-  
-  // Part A: JSON Metadata
-  formData.append(
-    'metadata',
-    new Blob([JSON.stringify(metadata)], { type: 'application/json' })
-  );
-
-  // Part B: Video File
+  formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   formData.append('file', videoBlob);
 
-  // 3. Perform the upload request
   try {
     const response = await fetch(
       'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status',
@@ -71,32 +55,20 @@ export const uploadVideoToYouTube = async (
     if (!response.ok) {
       const errorText = await response.text();
       let errorData;
-      try {
-          errorData = JSON.parse(errorText);
-      } catch (e) {}
-
+      try { errorData = JSON.parse(errorText); } catch (e) {}
       if (errorData?.error?.errors?.some((e: any) => e.reason === 'quotaExceeded') || errorText.toLowerCase().includes("quota")) {
         throw new Error("YOUTUBE_QUOTA_EXCEEDED");
       }
-
-      console.error("YouTube Upload Error:", errorData || errorText);
       throw new Error(`YouTube Upload Failed: ${response.status} ${response.statusText}`);
     }
-
-    const data = await response.json();
-    return data;
-
+    return await response.json();
   } catch (error: any) {
-    if (error.message !== "YOUTUBE_QUOTA_EXCEEDED") {
-      console.error("Upload process error:", error);
-    }
     throw error;
   }
 };
 
 /**
  * Fetches the authenticated user's YouTube channel profile.
- * Used for displaying channel info in the dashboard.
  */
 export const getYouTubeChannelProfile = async (accessToken: string) => {
   try {
@@ -113,31 +85,37 @@ export const getYouTubeChannelProfile = async (accessToken: string) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {}
-
-      // Specifically check for quota exhaustion
-      if (errorData?.error?.errors?.some((e: any) => e.reason === 'quotaExceeded') || errorText.toLowerCase().includes("quota")) {
-        throw new Error("YOUTUBE_QUOTA_EXCEEDED");
-      }
-
-      throw new Error(`Failed to fetch channel profile: ${response.status} ${response.statusText}`);
+      if (errorText.toLowerCase().includes("quota")) throw new Error("YOUTUBE_QUOTA_EXCEEDED");
+      throw new Error(`Failed to fetch channel profile: ${response.status}`);
     }
 
     const data = await response.json();
-    
-    if (!data.items || data.items.length === 0) {
-      throw new Error('No YouTube channel found for this Google account. Please create a channel first.');
-    }
-
+    if (!data.items || data.items.length === 0) throw new Error('No YouTube channel found.');
     return data.items[0];
   } catch (error: any) {
-    // Suppress console logging for quota errors as they are handled in the UI
-    if (error.message !== "YOUTUBE_QUOTA_EXCEEDED") {
-        console.error("Get Profile Error:", error);
-    }
     throw error;
+  }
+};
+
+/**
+ * Fetches recent video activities for performance analysis
+ */
+export const getYouTubeActivities = async (accessToken: string) => {
+  try {
+    const response = await fetch(
+      'https://www.googleapis.com/youtube/v3/activities?part=snippet,contentDetails&mine=true&maxResults=10',
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+        }
+      }
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.items || [];
+  } catch (e) {
+    return [];
   }
 };
